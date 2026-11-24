@@ -1,0 +1,28 @@
+{
+  "name": "@pnu/mcp",
+  "version": "0.1.0",
+  "description": "PNU·필지-건물 관계 MCP 서버",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "pnu-mcp": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "@pnu/core": "workspace:*",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2",
+    "vitest": "5.1.1"
+  }
+}

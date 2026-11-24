@@ -1,0 +1,22 @@
+{
+  "name": "pnu_api_mcp",
+  "private": true,
+  "packageManager": "pnpm@12.23.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.8",
+    "@types/node": "26.6.6",
+    "turbo": "2.11.13",
+    "typescript": "7.0.2",
+    "vitest": "5.1.1"
+  }
+}
