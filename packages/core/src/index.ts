@@ -30,6 +30,7 @@ export {
   type BjdongTable,
   type DecodedPnu,
   decodePnu,
+  defaultBjdongPath,
   findBjdongByName,
   loadBjdongTable,
   parseBjdongTsv,

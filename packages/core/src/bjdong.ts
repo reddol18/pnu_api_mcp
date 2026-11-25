@@ -17,7 +17,16 @@ export interface BjdongTable {
   entries(): Iterable<BjdongEntry>;
 }
 
-const DEFAULT_PATH = fileURLToPath(new URL('../data/bjdong_codes.tsv', import.meta.url));
+/**
+ * 법정동코드 표 파일 위치. 환경변수 PNU_BJDONG_TSV가 있으면 그것을 쓴다.
+ * 웹(Next)은 core를 번들에 넣기 때문에 import.meta.url이 패키지 위치를 가리키지 않는다 → 웹은 이 변수로 경로를 준다.
+ * import할 때가 아니라 처음 쓸 때 계산한다(번들 안에서 URL 계산이 실패해도 import는 되도록).
+ */
+export function defaultBjdongPath(): string {
+  const fromEnv = process.env.PNU_BJDONG_TSV;
+  if (fromEnv) return fromEnv;
+  return fileURLToPath(new URL('../data/bjdong_codes.tsv', import.meta.url));
+}
 
 export function parseBjdongTsv(text: string): BjdongTable {
   const map = new Map<string, BjdongEntry>();
@@ -54,11 +63,11 @@ export function findBjdongByName(head: string, table: BjdongTable = loadBjdongTa
 
 let cached: BjdongTable | undefined;
 
-/** 패키지에 들어 있는 법정동코드 스냅숏을 읽는다(한 번만). */
-export function loadBjdongTable(path: string = DEFAULT_PATH): BjdongTable {
-  if (path === DEFAULT_PATH && cached) return cached;
-  const t = parseBjdongTsv(readFileSync(path, 'utf8'));
-  if (path === DEFAULT_PATH) cached = t;
+/** 법정동코드 스냅숏을 읽는다. 경로를 주지 않으면 기본 위치에서 한 번만 읽고 캐시한다. */
+export function loadBjdongTable(path?: string): BjdongTable {
+  if (path === undefined && cached) return cached;
+  const t = parseBjdongTsv(readFileSync(path ?? defaultBjdongPath(), 'utf8'));
+  if (path === undefined) cached = t;
   return t;
 }
 

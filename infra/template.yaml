@@ -1,0 +1,184 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  pnu-web — 필지-건물 관계 조회 웹 (Next.js standalone on Lambda + Lambda Web Adapter, CloudFront).
+  키는 SSM Parameter Store(/pnu-web/*)에서 배포 때 읽어 Lambda 환경변수로 넣는다. 설계 §4-3, §7-8c.
+
+Parameters:
+  CodeBucket:
+    Type: String
+    Description: Lambda zip이 있는 S3 버킷
+  CodeKey:
+    Type: String
+    Description: Lambda zip의 S3 키
+  CertificateArn:
+    Type: String
+    Description: us-east-1의 ACM 인증서 ARN (pnu.reddol18.pe.kr)
+  DomainName:
+    Type: String
+    Default: pnu.reddol18.pe.kr
+  VworldDomain:
+    Type: String
+    Default: https://pnu.reddol18.pe.kr
+    Description: VWorld 키에 등록한 서비스 URL (공개 값)
+  AdapterLayerVersion:
+    Type: Number
+    Default: 30
+    Description: Lambda Web Adapter 레이어 버전 (2026-11-25 기준 최신 30 = 1.1.0, ap-northeast-2에서 조회로 확인)
+  BudgetEmail:
+    Type: String
+    Description: 예산 알림을 받을 이메일
+
+Resources:
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/pnu-web
+      RetentionInDays: 7
+
+  FunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  Function:
+    Type: AWS::Lambda::Function
+    DependsOn: LogGroup
+    Properties:
+      FunctionName: pnu-web
+      Description: pnu-web Next.js (Lambda Web Adapter)
+      Runtime: nodejs22.x
+      Architectures: [x86_64]
+      Handler: run.sh
+      MemorySize: 1024
+      Timeout: 30
+      Role: !GetAtt FunctionRole.Arn
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref CodeKey
+      Layers:
+        - !Sub arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerX86:${AdapterLayerVersion}
+      LoggingConfig:
+        LogGroup: !Ref LogGroup
+      Environment:
+        Variables:
+          AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
+          AWS_LWA_PORT: "8080"
+          AWS_LWA_READINESS_CHECK_PATH: /
+          JUSO_KEY: "{{resolve:ssm:/pnu-web/JUSO_KEY}}"
+          DATA_GO_KR_KEY: "{{resolve:ssm:/pnu-web/DATA_GO_KR_KEY}}"
+          VWORLD_KEY: "{{resolve:ssm:/pnu-web/VWORLD_KEY}}"
+          VWORLD_DOMAIN: !Ref VworldDomain
+
+  # CloudFront만 부를 수 있게 IAM 인증(OAC 서명)으로 잠근다 → 직접 호출로 캐시·요청 제한을 우회하지 못한다
+  FunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !GetAtt Function.Arn
+      AuthType: AWS_IAM
+
+  # 2025-10부터 함수 URL은 두 권한이 모두 필요하다 (CloudFront 개발자 가이드)
+  AllowCloudFrontInvokeUrl:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref Function
+      Action: lambda:InvokeFunctionUrl
+      Principal: cloudfront.amazonaws.com
+      FunctionUrlAuthType: AWS_IAM
+      SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}
+
+  AllowCloudFrontInvoke:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref Function
+      Action: lambda:InvokeFunction
+      Principal: cloudfront.amazonaws.com
+      SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}
+
+  OriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: pnu-web-lambda
+        OriginAccessControlOriginType: lambda
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: pnu-web
+        Enabled: true
+        HttpVersion: http2and3
+        PriceClass: PriceClass_200
+        Aliases: [!Ref DomainName]
+        ViewerCertificate:
+          AcmCertificateArn: !Ref CertificateArn
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        Origins:
+          - Id: lambda
+            # https://xxxx.lambda-url.<region>.on.aws/ → 호스트만
+            DomainName: !Select [2, !Split ["/", !GetAtt FunctionUrl.FunctionUrl]]
+            OriginAccessControlId: !GetAtt OriginAccessControl.Id
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+        DefaultCacheBehavior:
+          TargetOriginId: lambda
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD]
+          Compress: true
+          # 페이지·API는 캐시하지 않는다(앱 안에서 결과 캐시). 헤더는 Host만 빼고 넘긴다(X-Forwarded-For → IP별 요청 제한)
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad # Managed-CachingDisabled
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac # Managed-AllViewerExceptHostHeader
+        CacheBehaviors:
+          # 빌드마다 이름이 바뀌는 정적 파일은 길게 캐시
+          - PathPattern: /_next/static/*
+            TargetOriginId: lambda
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # Managed-CachingOptimized
+
+  Budget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: pnu-web-monthly-1usd
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit: { Amount: 1, Unit: USD }
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - { SubscriptionType: EMAIL, Address: !Ref BudgetEmail }
+        - Notification:
+            NotificationType: FORECASTED
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - { SubscriptionType: EMAIL, Address: !Ref BudgetEmail }
+
+Outputs:
+  DistributionDomain:
+    Description: 가비아에 pnu CNAME으로 넣을 값
+    Value: !GetAtt Distribution.DomainName
+  DistributionId:
+    Value: !Ref Distribution
+  FunctionName:
+    Value: !Ref Function

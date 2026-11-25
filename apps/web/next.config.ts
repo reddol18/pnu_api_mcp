@@ -8,9 +8,12 @@ const root = path.join(import.meta.dirname, '../..');
 const rootEnv = path.join(root, '.env');
 if (existsSync(rootEnv)) process.loadEnvFile(rootEnv);
 
+// core를 번들에 넣으므로 법정동코드 표 위치를 따로 알려 준다(next dev·build). Lambda에서는 infra/run.sh가 넣는다.
+process.env.PNU_BJDONG_TSV ??= path.join(root, 'packages/core/data/bjdong_codes.tsv');
+
 const config: NextConfig = {
-  // @pnu/core는 법정동코드 표(data/bjdong_codes.tsv)를 패키지 기준 상대경로로 읽는다 → 번들하지 않고 node_modules에서 그대로 쓴다
-  serverExternalPackages: ['@pnu/core'],
+  // @pnu/core는 번들에 넣는다. 밖에 두면(serverExternalPackages) standalone 추적이 워크스페이스 링크를 따라가지 못해
+  // core가 빠진다(2026-11-25 Linux 빌드에서 확인). 법정동코드 표 경로는 PNU_BJDONG_TSV로 준다.
   // Lambda(Lambda Web Adapter)에 올릴 수 있게 서버와 필요한 node_modules만 모은다 → .next/standalone
   output: 'standalone',
   // 모노레포: 배포 파일 추적·Turbopack 기준을 저장소 루트로

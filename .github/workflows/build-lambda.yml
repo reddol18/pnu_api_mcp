@@ -49,20 +49,22 @@ jobs:
           OUT=lambda
           test -f "$OUT/apps/web/server.js"
           test -f "$OUT/packages/core/data/bjdong_codes.tsv"
-          # core를 실행 환경에서 불러올 수 있는지 (standalone 추적에서 빠지면 여기서 실패)
-          (cd "$OUT/apps/web" && node --input-type=module -e "const m = await import('@pnu/core'); if (typeof m.analyze !== 'function') throw new Error('core 없음'); console.log('core ok, 법정동', m.loadBjdongTable().size)")
+          test -x "$OUT/run.sh"
           du -sh "$OUT"
 
-      - name: 띄워서 확인 (키 없이 — 공공 API 호출은 실패해도 응답은 와야 한다)
+      - name: run.sh로 띄워서 확인 (Lambda와 같은 시작 방식, 키 없이)
         run: |
           set -euo pipefail
-          cd lambda
-          PORT=8080 HOSTNAME=127.0.0.1 NODE_ENV=production node apps/web/server.js > ../server.log 2>&1 &
+          # 키가 없어 공공 API는 실패하지만, 법정동코드 표만으로 지번 → PNU가 되고 응답은 와야 한다
+          ./lambda/run.sh > server.log 2>&1 &
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:8080/ > /dev/null && break; sleep 1; done
           curl -sf http://127.0.0.1:8080/ | grep -q '필지-건물 관계 조회'
-          curl -sf "http://127.0.0.1:8080/api/analyze?q=1126010200101260039" | tee ../api.json | head -c 600; echo
-          grep -q '"status":"ok"' ../api.json
-          curl -sf -o /dev/null "http://127.0.0.1:8080/_next/static/" || true
+          curl -sf "http://127.0.0.1:8080/api/analyze?q=$(node -e "process.stdout.write(encodeURIComponent('중랑구 상봉동 126-39'))")" | tee api.json | head -c 800; echo
+          # 법정동코드 표로 PNU를 만들었으면 이 PNU가 나온다
+          grep -q '"pnu":"1126010200101260039"' api.json
+          # 정적 파일 하나가 실제로 나오는지
+          CSS=$(curl -sf http://127.0.0.1:8080/ | grep -o '/_next/static/[^"]*\.css' | head -1)
+          test -n "$CSS" && curl -sf -o /dev/null "http://127.0.0.1:8080$CSS"
           kill %1 || true
 
       - name: zip
@@ -76,4 +78,4 @@ jobs:
           if-no-files-found: error
 
       - if: failure()
-        run: cat server.log || true
+        run: cat server.log api.json || true
