@@ -11,8 +11,12 @@ if (existsSync(rootEnv)) process.loadEnvFile(rootEnv);
 const config: NextConfig = {
   // @pnu/core는 법정동코드 표(data/bjdong_codes.tsv)를 패키지 기준 상대경로로 읽는다 → 번들하지 않고 node_modules에서 그대로 쓴다
   serverExternalPackages: ['@pnu/core'],
+  // Lambda(Lambda Web Adapter)에 올릴 수 있게 서버와 필요한 node_modules만 모은다 → .next/standalone
+  output: 'standalone',
   // 모노레포: 배포 파일 추적·Turbopack 기준을 저장소 루트로
   outputFileTracingRoot: root,
+  // core가 실행 중에 읽는 법정동코드 표를 standalone에 꼭 넣는다
+  outputFileTracingIncludes: { '/api/analyze': ['../../packages/core/data/**'] },
   turbopack: { root },
   // 타입 검사는 turbo의 typecheck 태스크(tsc --noEmit)에서 한다
   typescript: { ignoreBuildErrors: true },
