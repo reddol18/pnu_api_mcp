@@ -2,6 +2,19 @@
 
 주소·PNU로 건물과 필지의 관계를 판정하는 MCP 서버와 웹. 설계는 `docs/design.md`.
 
+## 세션을 시작하면
+
+1. `docs/design.md` §7 작업 순서에서 `← 다음 작업` 표시를 찾는다. 끝낸 항목은 `[x]`로 바꾸고 다음 항목으로 표시를 옮긴다.
+2. §3의 **「아직 확인 안 된 것」** 목록을 본다. 구현하면서 실제 응답으로 확인한 것은 「확인된 사실」로 옮긴다. 기억으로 채우지 않는다.
+3. `.env`에 어떤 키가 있는지 **값을 출력하지 말고** 이름만 확인한다(`DATA_GO_KR_KEY`가 비어 있으면 사용자에게 묻는다).
+
+## 개발 환경 메모 (Windows)
+
+- pnpm은 corepack으로 사용자 npm 폴더(`npm prefix -g`)에 설치돼 있다. `pnpm`을 못 찾으면 PowerShell에서 `$env:Path="$(npm prefix -g);$env:Path"`.
+- pnpm의 `minimumReleaseAge` 정책이 공개 하루 미만 패키지를 막는다. 막히면 **예외를 추가하지 말고** 한 단계 이전 버전으로 고정한다.
+- 검증 한 번에: `pnpm lint; pnpm turbo run typecheck test build`. 포맷 자동 수정은 `pnpm exec biome check --write .` (`.github/ISSUE_TEMPLATE`은 포맷 대상에서 뺐다 — 머리말이 깨진다).
+- 공공 API 실제 응답을 fixture로 저장할 때 요청 URL·응답에 들어간 키(`confmKey`, `serviceKey`, `key`)는 반드시 지운다. 공개 레포다.
+
 ## 구조
 
 ```
