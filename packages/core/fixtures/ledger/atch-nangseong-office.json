@@ -1,0 +1,102 @@
+{
+  "request": {
+    "operation": "getBrAtchJibunInfo",
+    "sigunguCd": "43111",
+    "bjdongCd": "31025",
+    "platGbCd": "0",
+    "bun": "0120",
+    "ji": "0003",
+    "_type": "json",
+    "numOfRows": "100",
+    "pageNo": "1"
+  },
+  "response": {
+    "response": {
+      "header": {
+        "resultCode": "00",
+        "resultMsg": "NORMAL SERVICE"
+      },
+      "body": {
+        "items": {
+          "item": [
+            {
+              "rnum": 1,
+              "platPlc": "충청북도 청주시 상당구 낭성면 이목리 120-3번지",
+              "sigunguCd": "43111",
+              "bjdongCd": "31025",
+              "platGbCd": "0",
+              "bun": "0120",
+              "ji": "0003",
+              "mgmBldrgstPk": 115211000004749,
+              "regstrGbCd": "1",
+              "regstrGbCdNm": "일반",
+              "regstrKindCd": "1",
+              "regstrKindCdNm": "총괄표제부",
+              "newPlatPlc": " ",
+              "bldNm": "낭성면행정복지센터",
+              "splotNm": " ",
+              "block": " ",
+              "lot": " ",
+              "naRoadCd": " ",
+              "naBjdongCd": " ",
+              "naUgrndCd": " ",
+              "naMainBun": "0",
+              "naSubBun": "0",
+              "atchRegstrGbCd": "1",
+              "atchRegstrGbCdNm": "일반",
+              "atchSigunguCd": "43111",
+              "atchBjdongCd": "31025",
+              "atchPlatGbCd": "0",
+              "atchBun": "0034",
+              "atchJi": "0006",
+              "atchSplotNm": " ",
+              "atchBlock": " ",
+              "atchLot": " ",
+              "atchEtcJibunNm": " ",
+              "crtnDay": "20250918"
+            },
+            {
+              "rnum": 2,
+              "platPlc": "충청북도 청주시 상당구 낭성면 이목리 120-3번지",
+              "sigunguCd": "43111",
+              "bjdongCd": "31025",
+              "platGbCd": "0",
+              "bun": "0120",
+              "ji": "0003",
+              "mgmBldrgstPk": 115211000004749,
+              "regstrGbCd": "1",
+              "regstrGbCdNm": "일반",
+              "regstrKindCd": "1",
+              "regstrKindCdNm": "총괄표제부",
+              "newPlatPlc": " ",
+              "bldNm": "낭성면행정복지센터",
+              "splotNm": " ",
+              "block": " ",
+              "lot": " ",
+              "naRoadCd": " ",
+              "naBjdongCd": " ",
+              "naUgrndCd": " ",
+              "naMainBun": "0",
+              "naSubBun": "0",
+              "atchRegstrGbCd": "1",
+              "atchRegstrGbCdNm": "일반",
+              "atchSigunguCd": "43111",
+              "atchBjdongCd": "31025",
+              "atchPlatGbCd": "0",
+              "atchBun": "0262",
+              "atchJi": "0003",
+              "atchSplotNm": " ",
+              "atchBlock": " ",
+              "atchLot": " ",
+              "atchEtcJibunNm": " ",
+              "crtnDay": "20250918"
+            }
+          ]
+        },
+        "numOfRows": "100",
+        "pageNo": "1",
+        "totalCount": "2"
+      }
+    }
+  }
+}

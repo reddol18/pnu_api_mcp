@@ -1,0 +1,22 @@
+{
+  "request": {
+    "operation": "getBrRecapTitleInfo",
+    "sigunguCd": "43111",
+    "bjdongCd": "31025",
+    "platGbCd": "0",
+    "bun": "0120",
+    "ji": "0003",
+    "_type": "json",
+    "numOfRows": "100",
+    "pageNo": "1"
+  },
+  "response": {
+    "OpenAPI_ServiceResponse": {
+      "cmmMsgHeader": {
+        "errMsg": "SERVICETIMEOUT_ERROR",
+        "returnAuthMsg": "서비스 연결실패 에러",
+        "returnReasonCode": "05"
+      }
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "request": {
+    "operation": "getBrTitleInfo",
+    "sigunguCd": "43111",
+    "bjdongCd": "31025",
+    "platGbCd": "0",
+    "bun": "0120",
+    "ji": "0003",
+    "_type": "json",
+    "numOfRows": "100",
+    "pageNo": "1"
+  },
+  "response": {
+    "response": {
+      "header": {
+        "resultCode": "00",
+        "resultMsg": "NORMAL SERVICE"
+      },
+      "body": {
+        "items": {
+          "item": []
+        },
+        "numOfRows": "100",
+        "pageNo": "1",
+        "totalCount": "0"
+      }
+    }
+  }
+}

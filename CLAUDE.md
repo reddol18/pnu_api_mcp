@@ -18,7 +18,7 @@
 ## 구조
 
 ```
-packages/core   PNU·법정동·대장 키·주소 검색(juso)·(예정) 대장·공간 조회, 관계 분류 — 로직은 전부 여기
+packages/core   PNU·법정동·대장 키·주소 검색(juso)·대장 조회(건축HUB)·(예정) 공간 조회, 관계 분류 — 로직은 전부 여기
 packages/mcp    MCP 서버 (stdio). core만 호출
 apps/web        (예정) Next.js. core만 호출
 ```

@@ -1,0 +1,97 @@
+{
+  "request": {
+    "operation": "getBrRecapTitleInfo",
+    "sigunguCd": "11260",
+    "bjdongCd": "10200",
+    "platGbCd": "0",
+    "bun": "0126",
+    "ji": "0052",
+    "_type": "json",
+    "numOfRows": "100",
+    "pageNo": "1"
+  },
+  "response": {
+    "response": {
+      "header": {
+        "resultCode": "00",
+        "resultMsg": "NORMAL SERVICE"
+      },
+      "body": {
+        "items": {
+          "item": [
+            {
+              "rnum": 1,
+              "platPlc": "서울특별시 중랑구 상봉동 126-52번지",
+              "sigunguCd": "11260",
+              "bjdongCd": "10200",
+              "platGbCd": "0",
+              "bun": "0126",
+              "ji": "0052",
+              "mgmBldrgstPk": 10081100217801,
+              "regstrGbCd": "2",
+              "regstrGbCdNm": "집합",
+              "regstrKindCd": "1",
+              "regstrKindCdNm": "총괄표제부",
+              "newOldRegstrGbCd": "1",
+              "newOldRegstrGbCdNm": "신대장",
+              "newPlatPlc": " ",
+              "bldNm": "정원팰리스",
+              "splotNm": " ",
+              "block": " ",
+              "lot": " ",
+              "bylotCnt": 0,
+              "naRoadCd": " ",
+              "naBjdongCd": " ",
+              "naUgrndCd": "0",
+              "naMainBun": "0",
+              "naSubBun": "0",
+              "platArea": 1008.1,
+              "archArea": 468.76,
+              "bcRat": 46.49,
+              "totArea": 1990.02,
+              "vlRatEstmTotArea": 1990.02,
+              "vlRat": 197.4,
+              "mainPurpsCd": "02000",
+              "mainPurpsCdNm": "공동주택",
+              "etcPurps": "도시형생활주택(단지형다세대-29세대), 근린생활시설",
+              "hhldCnt": 29,
+              "fmlyCnt": 0,
+              "mainBldCnt": 3,
+              "atchBldCnt": 0,
+              "atchBldArea": 0,
+              "totPkngCnt": 25,
+              "indrMechUtcnt": 0,
+              "indrMechArea": 0,
+              "oudrMechUtcnt": 0,
+              "oudrMechArea": 0,
+              "indrAutoUtcnt": 0,
+              "indrAutoArea": 0,
+              "oudrAutoUtcnt": 25,
+              "oudrAutoArea": 0,
+              "pmsDay": "20141125",
+              "stcnsDay": "20141203",
+              "useAprDay": "20150528",
+              "pmsnoYear": "2014",
+              "pmsnoKikCd": "3060117",
+              "pmsnoKikCdNm": "건축과",
+              "pmsnoGbCd": "1101",
+              "pmsnoGbCdNm": "1101",
+              "hoCnt": 0,
+              "engrGrade": " ",
+              "engrRat": 0,
+              "engrEpi": 0,
+              "gnBldGrade": " ",
+              "gnBldCert": 0,
+              "itgBldGrade": " ",
+              "itgBldCert": 0,
+              "crtnDay": "20220813"
+            }
+          ]
+        },
+        "numOfRows": "100",
+        "pageNo": "1",
+        "totalCount": "1"
+      }
+    }
+  }
+}

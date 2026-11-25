@@ -1,0 +1,66 @@
+{
+  "request": {
+    "operation": "getBrAtchJibunInfo",
+    "sigunguCd": "11140",
+    "bjdongCd": "10300",
+    "platGbCd": "0",
+    "bun": "0031",
+    "ji": "0000",
+    "_type": "json",
+    "numOfRows": "100",
+    "pageNo": "1"
+  },
+  "response": {
+    "response": {
+      "header": {
+        "resultCode": "00",
+        "resultMsg": "NORMAL SERVICE"
+      },
+      "body": {
+        "items": {
+          "item": [
+            {
+              "rnum": 1,
+              "platPlc": "서울특별시 중구 태평로1가 31번지",
+              "sigunguCd": "11140",
+              "bjdongCd": "10300",
+              "platGbCd": "0",
+              "bun": "0031",
+              "ji": "0000",
+              "mgmBldrgstPk": 100311530,
+              "regstrGbCd": "1",
+              "regstrGbCdNm": "일반",
+              "regstrKindCd": "2",
+              "regstrKindCdNm": "일반건축물",
+              "newPlatPlc": "서울특별시 중구 세종대로 110 (태평로1가)",
+              "bldNm": " ",
+              "splotNm": " ",
+              "block": " ",
+              "lot": " ",
+              "naRoadCd": "111402005001",
+              "naBjdongCd": "10302",
+              "naUgrndCd": "0",
+              "naMainBun": "110",
+              "naSubBun": "0",
+              "atchRegstrGbCd": "1",
+              "atchRegstrGbCdNm": "일반",
+              "atchSigunguCd": "11140",
+              "atchBjdongCd": "10300",
+              "atchPlatGbCd": "0",
+              "atchBun": "0031",
+              "atchJi": "0001",
+              "atchSplotNm": " ",
+              "atchBlock": " ",
+              "atchLot": " ",
+              "atchEtcJibunNm": " ",
+              "crtnDay": "20220813"
+            }
+          ]
+        },
+        "numOfRows": "100",
+        "pageNo": "1",
+        "totalCount": "1"
+      }
+    }
+  }
+}

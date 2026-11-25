@@ -1,0 +1,18 @@
+{
+  "request": {
+    "operation": "getBrTitleInfo",
+    "sigunguCd": "11140",
+    "bjdongCd": "10300",
+    "_type": "json",
+    "note": "serviceKey=INVALID 로 호출, HTTP 403"
+  },
+  "response": {
+    "OpenAPI_ServiceResponse": {
+      "cmmMsgHeader": {
+        "errMsg": "SERVICE_KEY_IS_NOT_REGISTERED_ERROR",
+        "returnAuthMsg": "등록되지 않은 서비스키",
+        "returnReasonCode": "30"
+      }
+    }
+  }
+}
