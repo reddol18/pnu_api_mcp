@@ -273,6 +273,7 @@ pnu_api/
 | D. EKS(쿠버네티스)                                                           | **10만 원 이상**  | 클러스터 관리 비용만 시간당 0.1달러(월 약 73달러) + 노드. 이 규모엔 비추천                    |
 
 - 금액은 2026년 기준 공개 요금을 바탕으로 한 추정이다. 배포 전에 AWS 요금 계산기로 다시 확인한다.
+- 확인(2026-11-25, AWS 공식 페이지): Lambda 상시 무료 월 100만 요청 + 40만 GB-초. CloudFront 종량제 무료 월 1TB 전송 + 1,000만 요청(별도 상품인 월 정액 Free 플랜은 Free Tier 계정에서 못 쓴다는 조건이 있어 쓰지 않는다). ACM 공개 인증서 무료. **Secrets Manager는 비밀 하나에 월 $0.40 → 키는 SSM Parameter Store 표준 파라미터(저장 무료)에 둔다.**
 - **실제 한계는 돈이 아니라 공공 API 일일 호출 한도다.** 공공데이터포털 개발계정은 서비스마다 일일 한도가 있고, 운영계정을 신청하면 늘어난다(무료). 그래서 웹에서는 결과 캐시를 둔다(필지·건물 데이터는 자주 안 바뀜, TTL 7일).
 - 공개 웹에서 누구나 조회하면 우리 키의 한도를 남이 쓰게 된다 → IP당 요청 제한을 둔다.
 - 도메인은 기존 블로그 도메인의 하위 주소를 쓰면 추가 비용이 없다.
@@ -290,7 +291,11 @@ pnu_api/
 5. [x] 공간 조회(연속지적도 `LP_PA_CBND_BUBUN`·도로명주소 건물 `LT_C_SPBD`) + Turf.js 겹침 계산 — `core/src/spatial.ts` `spatialParcelBuildings`·`spatialBuildingParcels`, fixture 20개
 6. [x] 관계 분류 + 불일치 판정 — `core/src/relation.ts`(계산), `core/src/analyze.ts`(`analyze(input)`이 출발점 결정·조회·판정). 실제 사례 테스트: 1:1(남산공원길 105 공간), 1:N(낭성면), N:1(정원팰리스 대장), N:M(서울시청 대장, 정원팰리스 공간). §4-1 참고
 7. [x] MCP 도구 4개 추가(`resolve_address`, `parcel_buildings`, `building_parcels`, `classify_relation`) — 응답은 도형·원 응답을 빼고 PNU별 지번주소·한 줄 요약을 붙인다(2~3KB). stdio로 실제 API 호출 확인. `.mcp.json`(키 없음, `.env`를 읽음). Claude Code에서 "남산공원길 105 건물이 필지 몇 개에 걸쳐 있어?"로 확인(2026-11-25)
-8. [ ] **← 다음 작업.** 8a [x] Next.js 화면 로컬 동작(§4-3) — 검색·결과 패널·지도·API·캐시·요청 제한. 8b [ ] 배경지도: 전용 키 발급이 막혀 **서버 타일 중계 + CDN 캐시**로 변경, 계획은 §4-3 「배경지도 타일 중계 계획」. 8c [ ] Lambda 배포(CloudFront 타일 캐시 포함). 원래 항목: Next.js 화면(지도에 필지·건물 겹쳐 표시) + Lambda 배포
+8. [ ] **← 다음 작업.** 8a [x] Next.js 화면 로컬 동작(§4-3) — 검색·결과 패널·지도·API·캐시·요청 제한. 8b [ ] 배경지도: 전용 키 발급이 막혀 **서버 타일 중계 + CDN 캐시**로 변경, 계획은 §4-3 「배경지도 타일 중계 계획」. 8c [ ] Lambda 배포(CloudFront 타일 캐시 포함).
+   - **현재 상태(2026-11-25):** GitHub에 푸시·CI 통과(`109eb89`). 사용자가 AWS CLI(2.32+) 설치 후 `aws login`까지 마침 → 다음 세션은 `aws sts get-caller-identity`로 계정만 확인하고 시작한다. 리소스를 만드는 명령은 무엇을 만드는지·비용을 먼저 보여 주고 확인받은 뒤 실행.
+   - **정한 것:** 리전 서울(`ap-northeast-2`), CloudFront용 ACM 인증서만 `us-east-1`. API 키는 Secrets Manager(비밀 하나에 월 $0.40) 대신 **SSM Parameter Store 표준 파라미터**(저장 무료). CloudWatch 로그 보관 7일. 결제 예산 알림 $1 권장.
+   - **도메인:** `reddol18.pe.kr` DNS는 가비아(`ns.gabia.co.kr` 등), 루트 A 레코드 4개는 블로그(GitHub Pages) — 건드리지 않는다. 순서: ① ACM 인증서 신청 → 확인용 CNAME을 가비아에 추가 ② CloudFront 대체 도메인 `pnu.reddol18.pe.kr` + 인증서 ③ 가비아에 `pnu` CNAME → `dXXXX.cloudfront.net`.
+   - **정할 것:** Next.js를 Lambda에 올리는 방식(OpenNext 등 — 지금 기준 문서로 확인하고 고른다). 원래 항목: Next.js 화면(지도에 필지·건물 겹쳐 표시) + Lambda 배포
 9. [ ] 블로그 글 ① 건물과 필지가 1:1이 아닐 때 ② MCP 서버로 만들기. 기존 `/make-pnu-code`, `/land-use-api`에서 링크
 
 ## 8. 2단계 이후
