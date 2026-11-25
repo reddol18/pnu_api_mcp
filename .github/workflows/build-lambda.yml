@@ -83,4 +83,13 @@ jobs:
           if-no-files-found: error
 
       - if: failure()
-        run: cat server.log api.json || true
+        run: |
+          cat server.log api.json || true
+          echo "--- standalone 진단"
+          echo "[lambda/node_modules]"; ls lambda/node_modules 2>/dev/null | head -60 || true
+          echo "[lambda/apps/web/node_modules]"; ls lambda/apps/web/node_modules 2>/dev/null || true
+          echo "[@swc 위치: lambda]"; find lambda -type d -path '*@swc*' -maxdepth 5 2>/dev/null | head || true
+          echo "[@swc 위치: 원본]"; find node_modules apps/web/node_modules -maxdepth 2 -type d -path '*@swc*' 2>/dev/null | head || true
+          echo "[next 위치: 원본]"; ls -d node_modules/next apps/web/node_modules/next 2>/dev/null || true
+          echo "[추적 목록에 swc]"; grep -o '[^"]*@swc/helpers[^"]*' apps/web/.next/next-server.js.nft.json 2>/dev/null | head -5 || true
+          ls apps/web/.next/*.nft.json 2>/dev/null || true
