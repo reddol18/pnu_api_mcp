@@ -29,6 +29,8 @@ infra           AWS 배포: template.yaml(CloudFormation), deploy.mjs, run.sh. z
 - AWS CLI는 `F:\aws_cli\aws.exe`(PATH에 없음). `aws login`으로 로그인, 리전 `ap-northeast-2`.
 - 순서: main에 push → `build-lambda` 성공 → `gh run download <id> -n pnu-web-lambda -D <폴더>` → `$env:AWS_CLI='F:\aws_cli\aws.exe'; $env:BUDGET_EMAIL='…'; node infra/deploy.mjs <zip>`.
 - AWS 리소스를 만들거나 바꾸는 명령은 실행 전에 무엇을 만드는지·비용을 사용자에게 보여 주고 확인받는다.
+- 파라미터 바꾸기: `--param MemorySize=512`, `--param ReservedConcurrency=100`, `--param KillSwitchGbSeconds=10000`. 주지 않으면 스택의 기존 값을 쓴다.
+- **차단 스위치가 내렸을 때(메일 "pnu-web-usage-kill-switch" ALARM):** 웹 함수의 예약 동시 실행이 0이라 모든 요청이 거절된다. 원인(로그·급증)을 먼저 보고, 되살리기는 `F:\aws_cli\aws.exe lambda put-function-concurrency --function-name pnu-web --reserved-concurrent-executions 100 --region ap-northeast-2` 또는 다시 배포(템플릿 값으로 돌아간다). 경보가 아직 ALARM이면 다음 5분 지표에서 다시 내려가지 않게 원인부터 막는다.
 
 ## 하네스
 

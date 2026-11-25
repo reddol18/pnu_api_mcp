@@ -3,7 +3,7 @@
  * pnu-web 배포: Lambda zip을 S3에 올리고 CloudFormation 스택(infra/template.yaml)을 만들거나 갱신한다.
  *
  * 사용:
- *   node infra/deploy.mjs <lambda zip 경로> [--certificate-arn arn:...] [--plan | --preview]
+ *   node infra/deploy.mjs <lambda zip 경로> [--certificate-arn arn:...] [--param Key=Value ...] [--plan | --preview]
  *   --plan     계정·버킷·인증서·함수 코드 크기만 확인
  *   --preview  CloudFormation 변경 목록만 만들어 보여 주고 지운다(적용 안 함)
  * 환경변수:
@@ -28,6 +28,17 @@ const flag = (name) => {
   return i >= 0 ? args[i + 1] : undefined;
 };
 const planOnly = args.includes('--plan');
+// --param Key=Value (여러 번): 템플릿 파라미터 바꾸기. 예: --param MemorySize=512 --param ReservedConcurrency=100
+// 주지 않은 파라미터는 cloudformation deploy가 스택의 기존 값을 쓴다
+const ALLOWED_PARAMS = new Set(['MemorySize', 'ReservedConcurrency', 'KillSwitchGbSeconds']);
+const extraParams = args.flatMap((a, i) => (a === '--param' && args[i + 1] ? [args[i + 1]] : []));
+for (const p of extraParams) {
+  const name = p.split('=')[0] ?? '';
+  if (!ALLOWED_PARAMS.has(name) || !p.includes('=')) {
+    console.error(`--param은 ${[...ALLOWED_PARAMS].join('·')}=값만 받습니다: ${p}`);
+    process.exit(2);
+  }
+}
 // biome-ignore lint/suspicious/noUndeclaredEnvVars: turbo 태스크가 아닌 배포 스크립트
 const aws = process.env.AWS_CLI || 'aws';
 // biome-ignore lint/suspicious/noUndeclaredEnvVars: turbo 태스크가 아닌 배포 스크립트
@@ -165,6 +176,7 @@ const deployArgs = [
   `CodeKey=${key}`,
   `CertificateArn=${certArn}`,
   `BudgetEmail=${email}`,
+  ...extraParams,
 ];
 
 if (args.includes('--preview')) {

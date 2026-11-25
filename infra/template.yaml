@@ -26,7 +26,25 @@ Parameters:
     Description: Lambda Web Adapter 레이어 버전 (2026-11-25 기준 최신 30 = 1.1.0, ap-northeast-2에서 조회로 확인)
   BudgetEmail:
     Type: String
-    Description: 예산 알림을 받을 이메일
+    Description: 예산·차단 스위치 알림을 받을 이메일
+  MemorySize:
+    Type: Number
+    Default: 1024
+    AllowedValues: [512, 1024]
+    Description: Lambda 메모리(MB). 실사용 최대 159MB, 처리 시간 대부분은 공공 API 대기(이슈 #4)
+  ReservedConcurrency:
+    Type: Number
+    Default: 100
+    MinValue: 1
+    Description: >-
+      예약 동시 실행 상한(이슈 #2). 정상 처리 0.87초면 약 115rps까지 받고, 넘는 요청은 Lambda가 바로 거절한다.
+      최악의 시간당 Lambda 비용이 상한 × 3600 GB-초로 묶인다(1024MB, 100이면 약 $6).
+  KillSwitchGbSeconds:
+    Type: Number
+    Default: 10000
+    Description: >-
+      5분 동안 Lambda 사용량(GB-초)이 이 값을 넘으면 차단 스위치가 동시 실행을 0으로 내린다(이슈 #5).
+      1024MB면 평균 동시 실행 약 33을 5분 이어 간 양. 평소 30rps 급증(약 7,800)은 넘지 않는다.
 
 Resources:
   LogGroup:
@@ -46,6 +64,28 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: cache-table
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [dynamodb:GetItem, dynamodb:PutItem]
+                Resource: !GetAtt CacheTable.Arn
+
+  # 판정 결과 공유 캐시(이슈 #3). 키는 입력의 SHA-256, 값은 gzip JSON, 7일 TTL. 25GB까지 저장 무료
+  CacheTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: pnu-web-cache
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: k, AttributeType: S }
+      KeySchema:
+        - { AttributeName: k, KeyType: HASH }
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
 
   Function:
     Type: AWS::Lambda::Function
@@ -56,8 +96,10 @@ Resources:
       Runtime: nodejs22.x
       Architectures: [x86_64]
       Handler: run.sh
-      MemorySize: 1024
+      MemorySize: !Ref MemorySize
       Timeout: 30
+      # 차단 스위치가 0으로 내렸어도 다음 배포가 이 값으로 되돌린다(= 되살리는 방법 하나)
+      ReservedConcurrentExecutions: !Ref ReservedConcurrency
       Role: !GetAtt FunctionRole.Arn
       Code:
         S3Bucket: !Ref CodeBucket
@@ -75,6 +117,7 @@ Resources:
           DATA_GO_KR_KEY: "{{resolve:ssm:/pnu-web/DATA_GO_KR_KEY}}"
           VWORLD_KEY: "{{resolve:ssm:/pnu-web/VWORLD_KEY}}"
           VWORLD_DOMAIN: !Ref VworldDomain
+          CACHE_TABLE: !Ref CacheTable
 
   # CloudFront만 부를 수 있게 IAM 인증(OAC 서명)으로 잠근다 → 직접 호출로 캐시·요청 제한을 우회하지 못한다
   FunctionUrl:
@@ -218,6 +261,118 @@ Resources:
             ThresholdType: PERCENTAGE
           Subscribers:
             - { SubscriptionType: EMAIL, Address: !Ref BudgetEmail }
+
+  # ── 비용 차단 스위치(이슈 #5) ─────────────────────────────────────────────
+  # 요금 집계(예산)는 몇 시간 늦어 짧은 급증을 못 막는다 → 1분 단위로 반영되는 Lambda 지표로 본다.
+  # 경보 → SNS → 차단용 Lambda가 웹 함수의 예약 동시 실행을 0으로(모든 요청 즉시 거절) + 메일.
+  # CloudFront(페이지·타일) 요청은 이걸로 막히지 않는다.
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: pnu-web-kill-switch
+      Subscription:
+        - { Protocol: email, Endpoint: !Ref BudgetEmail }
+
+  KillSwitchLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/pnu-web-kill-switch
+      RetentionInDays: 30
+
+  KillSwitchRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: throttle-web-function
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:PutFunctionConcurrency
+                Resource: !GetAtt Function.Arn
+
+  KillSwitchFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: KillSwitchLogGroup
+    Properties:
+      FunctionName: pnu-web-kill-switch
+      Description: 사용량 경보가 울리면 pnu-web의 예약 동시 실행을 0으로 내린다
+      Runtime: nodejs22.x
+      Architectures: [x86_64]
+      Handler: index.handler
+      MemorySize: 128
+      Timeout: 10
+      Role: !GetAtt KillSwitchRole.Arn
+      LoggingConfig:
+        LogGroup: !Ref KillSwitchLogGroup
+      Environment:
+        Variables:
+          TARGET_FUNCTION: !Ref Function
+      Code:
+        ZipFile: |
+          const { LambdaClient, PutFunctionConcurrencyCommand } = require('@aws-sdk/client-lambda');
+          const client = new LambdaClient({});
+          exports.handler = async (event) => {
+            for (const r of event.Records ?? []) {
+              let msg = {};
+              try { msg = JSON.parse(r.Sns?.Message ?? '{}'); } catch {}
+              if (msg.NewStateValue !== 'ALARM') continue;
+              await client.send(new PutFunctionConcurrencyCommand({
+                FunctionName: process.env.TARGET_FUNCTION,
+                ReservedConcurrentExecutions: 0,
+              }));
+              console.log(JSON.stringify({ killed: process.env.TARGET_FUNCTION, alarm: msg.AlarmName, reason: msg.NewStateReason }));
+            }
+          };
+
+  KillSwitchSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref AlarmTopic
+      Protocol: lambda
+      Endpoint: !GetAtt KillSwitchFunction.Arn
+
+  AllowSnsInvokeKillSwitch:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref KillSwitchFunction
+      Action: lambda:InvokeFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref AlarmTopic
+
+  UsageAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: pnu-web-usage-kill-switch
+      AlarmDescription: !Sub 5분 Lambda 사용량이 ${KillSwitchGbSeconds} GB-초를 넘음 → pnu-web 동시 실행 0 (되살리기는 CLAUDE.md 배포 절)
+      Metrics:
+        - Id: duration
+          ReturnData: false
+          MetricStat:
+            Metric:
+              Namespace: AWS/Lambda
+              MetricName: Duration
+              Dimensions:
+                - { Name: FunctionName, Value: !Ref Function }
+            Period: 300
+            Stat: Sum
+        - Id: gbSeconds
+          Label: GB-초 (5분)
+          ReturnData: true
+          Expression: !Sub duration / 1000 * ${MemorySize} / 1024
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: !Ref KillSwitchGbSeconds
+      EvaluationPeriods: 1
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmTopic]
 
 Outputs:
   DistributionDomain:
