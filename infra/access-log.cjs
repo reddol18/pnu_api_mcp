@@ -32,9 +32,19 @@ const emit = http.Server.prototype.emit;
 http.Server.prototype.emit = function patchedEmit(event, req, res) {
   if (event === 'request' && req && res) {
     const t0 = process.hrtime.bigint();
+    // 처리 시간은 응답을 끝내는 순간(res.end 호출)으로 잰다. finish는 Lambda가 실행 환경을 얼린 뒤
+    // 다음 호출 때야 올 수 있어 얼어 있던 시간까지 더해진다(이슈 #9). 줄은 응답 코드가 확정된 finish에서 쓴다.
+    let t1;
+    const end = res.end;
+    res.end = function patchedEnd() {
+      t1 ??= process.hrtime.bigint();
+      // biome-ignore lint/complexity/noArguments: 원래 end에 받은 인자를 그대로 넘긴다
+      return end.apply(this, arguments);
+    };
     res.once('finish', () => {
       try {
-        process.stdout.write(`${accessLine(req, res, Number(process.hrtime.bigint() - t0) / 1e6)}\n`);
+        const ms = Number((t1 ?? process.hrtime.bigint()) - t0) / 1e6;
+        process.stdout.write(`${accessLine(req, res, ms)}\n`);
       } catch {
         // 로그 때문에 응답이 깨지면 안 된다
       }
