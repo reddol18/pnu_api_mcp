@@ -251,9 +251,9 @@ packages/mcp               apps/web (Next.js)
 
 영상: [`media/pnu_traffic_compare.mp4`](media/pnu_traffic_compare.mp4) (4배속). 급증 구간 30~120초. 시나리오 `pnu_baseline`·`pnu_spike`·`pnu_spike_big`.
 
-![건축HUB 장애 90초: 위는 지금 설정(2초×3), 아래는 예전 설정(5초×3). 같은 시각 Lambda 실행 중 96 대 177](media/pnu_hub_outage_compare.gif)
+![건축HUB 장애 90초: 위부터 예전 설정(5초×3), 지금 설정(2초×3), 회로 차단기. 같은 시각 Lambda 실행 중 177 · 96 · 15](media/pnu_hub_outage_compare.gif)
 
-영상: [`media/pnu_hub_outage_compare.mp4`](media/pnu_hub_outage_compare.mp4) (breakscale_wrap `lab/viz/record.mjs`로 녹화, 4배속). 장애 구간 60~150초.
+영상: [`media/pnu_hub_outage_compare.mp4`](media/pnu_hub_outage_compare.mp4) (breakscale_wrap `lab/viz/record.mjs`로 녹화, 4배속). 장애 구간 60~150초. 시나리오 `pnu_hub_outage_old`·`pnu_hub_outage`·`pnu_hub_outage_breaker`. 노드 이름의 1024MB는 모의 당시 값(이후 512MB로 바꿈, 처리 시간은 비슷하거나 짧다).
 
 #### 비용 추산 (2026-11-25)
 
