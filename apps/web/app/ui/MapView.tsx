@@ -9,8 +9,14 @@ import {
   Popup,
   ScaleControl,
   type StyleSpecification,
+  setWorkerUrl,
 } from 'maplibre-gl';
 import { useEffect, useRef } from 'react';
+
+// MapLibre 6은 워커(maplibre-gl-worker.mjs)를 자기 파일 옆에서 찾는데, 번들러가 maplibre를 청크로 합치면
+// 그 자리에 워커가 없어 "Worker failed to load"가 나고 GeoJSON(필지·건물 외곽선)이 그려지지 않는다.
+// 이 형태(new URL + import.meta.url)는 번들러가 워커 파일을 정적 파일로 내보내고 그 주소를 넣어 준다.
+setWorkerUrl(new URL('maplibre-gl/dist/maplibre-gl-worker.mjs', import.meta.url).href);
 
 /**
  * 필지·건물 외곽선을 겹쳐 그린다.
