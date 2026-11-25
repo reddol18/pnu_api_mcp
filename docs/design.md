@@ -260,8 +260,8 @@ pnu_api/
 4. [x] 대장 조회(표제부·총괄표제부·부속지번) — `core/src/ledger.ts` `lookupParcelLedger`(소스별 `ok | empty | error`), fixture 14개
 5. [x] 공간 조회(연속지적도 `LP_PA_CBND_BUBUN`·도로명주소 건물 `LT_C_SPBD`) + Turf.js 겹침 계산 — `core/src/spatial.ts` `spatialParcelBuildings`·`spatialBuildingParcels`, fixture 20개
 6. [x] 관계 분류 + 불일치 판정 — `core/src/relation.ts`(계산), `core/src/analyze.ts`(`analyze(input)`이 출발점 결정·조회·판정). 실제 사례 테스트: 1:1(남산공원길 105 공간), 1:N(낭성면), N:1(정원팰리스 대장), N:M(서울시청 대장, 정원팰리스 공간). §4-1 참고
-7. [ ] **← 다음 작업.** MCP 도구 4개 추가 + Claude Code 연결 확인
-8. [ ] Next.js 화면(지도에 필지·건물 겹쳐 표시) + Lambda 배포
+7. [x] MCP 도구 4개 추가(`resolve_address`, `parcel_buildings`, `building_parcels`, `classify_relation`) — 응답은 도형·원 응답을 빼고 PNU별 지번주소·한 줄 요약을 붙인다(2~3KB). stdio로 실제 API 호출 확인. `.mcp.json`(키 없음, `.env`를 읽음). **남은 것: Claude Code 새 세션에서 `/mcp` 승인 후 실제 질문으로 확인**
+8. [ ] **← 다음 작업.** Next.js 화면(지도에 필지·건물 겹쳐 표시) + Lambda 배포
 9. [ ] 블로그 글 ① 건물과 필지가 1:1이 아닐 때 ② MCP 서버로 만들기. 기존 `/make-pnu-code`, `/land-use-api`에서 링크
 
 ## 8. 2단계 이후
