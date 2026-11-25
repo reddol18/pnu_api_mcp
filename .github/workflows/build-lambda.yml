@@ -28,7 +28,16 @@ jobs:
           cache: pnpm
       # pnpm 기본(.pnpm + 심볼릭 링크) 그대로면 standalone의 링크를 풀 때 next가 자기 의존 패키지(@swc/helpers 등)를
       # 못 찾는다. Lambda용 빌드만 평평한 node_modules로 설치해 standalone에 링크가 생기지 않게 한다.
-      - run: pnpm install --frozen-lockfile --config.node-linker=hoisted
+      # (pnpm 10+는 명령줄 --config.node-linker가 먹지 않았다 → pnpm-workspace.yaml의 nodeLinker로, CI 안에서만)
+      - name: pnpm 설치 (hoisted)
+        run: |
+          set -euo pipefail
+          printf '\nnodeLinker: hoisted\n' >> pnpm-workspace.yaml
+          pnpm install --frozen-lockfile
+          # 정말 평평하게 깔렸는지: next와 @swc/helpers가 루트 node_modules에 실제 폴더로 있어야 한다
+          test -d node_modules/next && test ! -L node_modules/next
+          test -d node_modules/@swc/helpers
+          test ! -d node_modules/.pnpm || echo "주의: .pnpm 폴더가 있다"
       - run: pnpm turbo run build --filter=@pnu/web...
 
       - name: Lambda 패키지 만들기
