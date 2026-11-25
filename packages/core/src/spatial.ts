@@ -65,6 +65,8 @@ export interface BuildingShape {
   roadName: string | null;
   buildingNo: string | null;
   groundFloors: number | null;
+  /** 주소 검색용 도로명주소 (시도 시군구 도로명 건물번호). 건물관리번호로 juso 후보를 다시 찾을 때 쓴다 */
+  roadAddressHint: string | null;
   geometry: AreaGeometry;
 }
 
@@ -130,6 +132,13 @@ export function normalizeBuildingShape(f: RawFeature): BuildingShape | null {
     roadName: str(p.rd_nm),
     buildingNo: str(p.buld_no),
     groundFloors: Number.isFinite(floors) && str(p.gro_flo_co) !== null ? floors : null,
+    roadAddressHint:
+      str(p.rd_nm) && str(p.buld_no)
+        ? [p.sido, p.sigungu, p.rd_nm, p.buld_no]
+            .map(str)
+            .filter((x): x is string => x !== null)
+            .join(' ')
+        : null,
     geometry: f.geometry,
   };
 }

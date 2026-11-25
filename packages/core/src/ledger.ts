@@ -61,6 +61,12 @@ export interface LedgerRegister {
   /** 도로명대지위치 */
   roadAddress: string | null;
   buildingName: string | null;
+  /**
+   * 새주소 도로코드·본번·부번 (naRoadCd·naMainBun·naSubBun). 도로명주소가 없으면 null.
+   * juso 검색 결과의 rnMgtSn·buldMnnm·buldSlno와 같은 값이라 대장 ↔ 건물관리번호를 잇는 데 쓴다
+   * (서울시청 111402005001·110, 서울타워 111704103024·105로 확인).
+   */
+  roadKey: { roadCode: string; mainNo: number; subNo: number } | null;
   /** 데이터 생성일자 YYYYMMDD */
   createdDate: string | null;
 }
@@ -141,6 +147,13 @@ export function ledgerParcel(
   return p;
 }
 
+function roadKeyOf(it: LedgerItemRaw): LedgerRegister['roadKey'] {
+  const roadCode = str(it.naRoadCd);
+  const mainNo = num(it.naMainBun);
+  if (!roadCode || !/^\d{12}$/.test(roadCode) || !mainNo) return null;
+  return { roadCode, mainNo, subNo: num(it.naSubBun) ?? 0 };
+}
+
 function register(it: LedgerItemRaw): LedgerRegister {
   const pk = str(it.mgmBldrgstPk);
   if (!pk) throw new LedgerError('mgmBldrgstPk가 없습니다', 'PARSE');
@@ -154,6 +167,7 @@ function register(it: LedgerItemRaw): LedgerRegister {
     parcelAddress: str(it.platPlc),
     roadAddress: str(it.newPlatPlc),
     buildingName: str(it.bldNm),
+    roadKey: roadKeyOf(it),
     createdDate: str(it.crtnDay),
   };
 }

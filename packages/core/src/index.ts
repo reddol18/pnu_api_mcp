@@ -8,11 +8,22 @@ export {
   type JusoRaw,
   type JusoResponse,
   normalizeJuso,
+  parseAddressNumber,
   parseJusoResponse,
   type SearchAddressOptions,
   sanitizeKeyword,
   searchAddress,
 } from './address.js';
+export {
+  type AnalysisResult,
+  type AnalyzeOptions,
+  analyze,
+  analyzeBuilding,
+  analyzeParcel,
+  type BuildingAnalysis,
+  type ParcelAnalysis,
+  type RelationResult,
+} from './analyze.js';
 export {
   type BjdongEntry,
   type BjdongTable,
@@ -58,6 +69,24 @@ export {
   pnuToLedgerKey,
   splitBuildingMgmtNo,
 } from './pnu.js';
+export {
+  type BuildingStartContext,
+  classify,
+  type Discrepancy,
+  type DiscrepancyCode,
+  discrepanciesFromBuilding,
+  discrepanciesFromParcel,
+  type EdgeContact,
+  type GraphBuilding,
+  type GraphEdge,
+  ledgerViewFromBuilding,
+  ledgerViewFromParcel,
+  type ParcelStartContext,
+  type RelationKind,
+  type RelationView,
+  spatialViewFromBuilding,
+  spatialViewFromParcel,
+} from './relation.js';
 export { type CodedError, type SourceResult, settle } from './source.js';
 export {
   type AreaGeometry,

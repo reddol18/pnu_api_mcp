@@ -164,6 +164,17 @@ packages/mcp               apps/web (Next.js)
 - 겹침 계산: 1단계는 Turf.js(메모리 계산). 필지·건물 수가 적어 충분하다. PostGIS는 캐시를 DB로 옮길 때 같이 검토.
 - 소스별 타임아웃 5초, 한 소스가 실패해도 나머지 결과는 보여 준다(`status: ok | empty | error`).
 
+### 4-1. 관계 판정 규칙 (구현: `relation.ts`, `analyze.ts`)
+
+- 표기는 **건물 수 : 필지 수**. `1:1` / `1:N` 건물 하나가 여러 필지 / `N:1` 한 필지에 여러 동, 모두 그 안 / `N:M` 한 필지의 건물 중 일부가 다른 필지에도 걸침.
+- 출발점: PNU·지번주소 → **필지 출발**(그 필지의 건물들 + 그 건물들이 걸친 필지들). 도로명주소·건물관리번호·건물명 → **건물 출발**(그 건물이 걸친 필지들, 건물 수는 1로 본다).
+- **대장 기준:** 필지 출발이면 그 지번 표제부의 주건축물(없으면 표제부 전부, 표제부가 없으면 총괄표제부)이 건물. 부속지번은 그 대장의 건물에, 노드가 아닌 대장(총괄표제부·부속건축물)의 부속지번은 대지 전체에 붙인다. 건물 출발이면 대표지번 대장 중 **도로명 키**(`naRoadCd`·`naMainBun`·`naSubBun` = juso `rnMgtSn`·`buldMnnm`·`buldSlno`)가 같은 표제부를 이 건물로 본다. 안 맞으면 총괄표제부.
+- **공간 기준:** 도로명주소 건물 외곽선과 필지 경계의 겹침. 경계 접촉(건물 면적의 1% 미만)은 관계에서 빼고 `edgeContacts`로 따로.
+- `agree`: 관계 종류와 필지 목록이 둘 다 같을 때만 true.
+- 불일치 코드: `parcel_not_in_cadastral`, `recap_without_titles`, `ledger_parcel_not_spatial`, `spatial_parcel_not_ledger`, `building_count_differs`, `representative_not_under_building`, `ledger_unmatched`.
+- 후보가 여럿(같은 지번이 여러 동, 건물명 검색 결과 여럿)이면 판정하지 않고 `ambiguous`로 후보를 돌려준다.
+- 지번주소로 juso 결과가 없으면(도로명주소 건물이 없는 필지) PNU로 다시 물어보라고 안내한다 — 지번 → PNU 변환은 juso에 기대고 있다.
+
 ### MCP 도구
 
 | 도구                | 입력                         | 출력                                                       |
@@ -232,8 +243,8 @@ pnu_api/
 3. [x] juso 연동 → 주소 종류 판별(`classifyInput`)과 후보 목록(`searchAddress`), fixture 8개로 정규화 테스트 — `core/src/address.ts`
 4. [x] 대장 조회(표제부·총괄표제부·부속지번) — `core/src/ledger.ts` `lookupParcelLedger`(소스별 `ok | empty | error`), fixture 14개
 5. [x] 공간 조회(연속지적도 `LP_PA_CBND_BUBUN`·도로명주소 건물 `LT_C_SPBD`) + Turf.js 겹침 계산 — `core/src/spatial.ts` `spatialParcelBuildings`·`spatialBuildingParcels`, fixture 20개
-6. [ ] **← 다음 작업.** 관계 분류 + 불일치 판정, fixture 테스트(1:1, 1:N, N:1, N:M 실제 사례)
-7. [ ] MCP 도구 4개 추가 + Claude Code 연결 확인
+6. [x] 관계 분류 + 불일치 판정 — `core/src/relation.ts`(계산), `core/src/analyze.ts`(`analyze(input)`이 출발점 결정·조회·판정). 실제 사례 테스트: 1:1(남산공원길 105 공간), 1:N(낭성면), N:1(정원팰리스 대장), N:M(서울시청 대장, 정원팰리스 공간). §4-1 참고
+7. [ ] **← 다음 작업.** MCP 도구 4개 추가 + Claude Code 연결 확인
 8. [ ] Next.js 화면(지도에 필지·건물 겹쳐 표시) + Lambda 배포
 9. [ ] 블로그 글 ① 건물과 필지가 1:1이 아닐 때 ② MCP 서버로 만들기. 기존 `/make-pnu-code`, `/land-use-api`에서 링크
 

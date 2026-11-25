@@ -29,19 +29,26 @@ export function classifyInput(input: string): InputKind {
   const s = input.trim().replace(/\s+/g, ' ');
   if (/^\d{19}$/.test(s)) return 'pnu';
   if (/^\d{25}$/.test(s)) return 'buildingMgmtNo';
-
-  // "…동 산 12-3", "…동 산12-3", "…로 110", "…길 20-2", "…로110"
-  const m = s.match(/^(.*?)\s*(산\s*)?(\d+(?:-\d+)?)(?:\s.*)?$/u);
-  if (!m) return 'unknown';
-  const head = (m[1] ?? '').trim();
-  const mountain = Boolean(m[2]);
-  const last = head.split(' ').at(-1) ?? '';
+  const n = parseAddressNumber(s);
+  if (!n) return 'unknown';
+  const last = n.head.split(' ').at(-1) ?? '';
   if (!last) return 'unknown';
-  if (mountain) return 'jibun';
+  if (n.mountain) return 'jibun';
   // "태평로1가"처럼 로가 들어간 법정동 이름이 있으니 끝 글자로만 본다
   if (/[로길]$/u.test(last)) return 'road';
   if (/[동리가]$/u.test(last)) return 'jibun';
   return 'unknown';
+}
+
+/** 주소 문자열 끝의 번지·건물번호: "…동 산 12-3" → {mountain, main 12, sub 3}. 없으면 null */
+export function parseAddressNumber(
+  input: string,
+): { head: string; mountain: boolean; main: number; sub: number } | null {
+  const s = input.trim().replace(/\s+/g, ' ');
+  // "…동 산 12-3", "…동 산12-3", "…로 110", "…길 20-2", "…로110"
+  const m = s.match(/^(.*?)\s*(산\s*)?(\d+)(?:-(\d+))?(?:\s.*)?$/u);
+  if (!m) return null;
+  return { head: (m[1] ?? '').trim(), mountain: Boolean(m[2]), main: Number(m[3]), sub: Number(m[4] ?? 0) };
 }
 
 /** 검색 API 응답의 juso 항목 (원문 필드명) */
