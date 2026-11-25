@@ -39,7 +39,7 @@
 | 지번주소    | **필지**    | 필지 → 건물들 |
 | PNU(19자리) | **필지**    | 필지 → 건물들 |
 
-도로명주소 검색 API는 건물관리번호(25자리)를 함께 준다. 구조는 `법정동코드 10 + 산 여부 1 + 본번 4 + 부번 4 + 일련 6`이라 **앞 19자리가 PNU와 같은 구조**다(건물의 대표 지번). 단, 산 여부 표기값은 구현 때 확인한다.
+도로명주소 검색 API는 건물관리번호(25자리)를 함께 준다. 구조는 `법정동코드 10 + 산 여부 1 + 본번 4 + 부번 4 + 일련 6`으로 PNU와 닮았지만 **앞 19자리를 PNU로 쓰면 안 된다**(발급 당시 값이라 옛 법정동코드·옛 부번이 남아 있다, §3 확인된 사실). PNU는 검색 결과의 `admCd + mtYn + lnbrMnnm + lnbrSlno`로 만든다.
 
 ### 2-2. PNU 규칙
 
@@ -91,10 +91,20 @@
 - 도로명주소 개발자센터는 개편되어 옛 주소(`/addrlink/openApi/...`)가 404다. 현재: API 목록 `https://business.juso.go.kr/jst/jstAddressApiList`, 검색 API 안내 `https://business.juso.go.kr/jst/jstRoadNmAddrApiSearch`. 승인키는 **API마다 따로** 나온다(좌표제공 API를 쓰면 키 추가).
 - 브이월드 인증키 화면의 「활용API」 선택지(캡처로 확인): 2D 지도, 3D 지도, 배경지도, WMS/WFS, WMTS/TMS, 2D데이터, 지오코더, 검색, 이미지, 범례, 2D 모바일, 3D 모바일, 3D데스크톱, 국가중점. 이 프로젝트는 **2D데이터 API**(연속지적도·건물통합정보)가 핵심.
 
+**확인된 사실 — juso 검색 API (2026-11-25, 명세 페이지 JS 번들 + 실제 응답, `packages/core/fixtures/juso/`):**
+
+- 요청: `POST https://business.juso.go.kr/addrlink/addrLinkApi.do` (form). `confmKey`, `currentPage`, `countPerPage`, `keyword`, `resultType=json`, `addInfoYn=Y`(→ `relJibun`·`hstryYn`·`hemdNm` 추가). 안내 페이지는 SPA라 일반 fetch로는 본문이 안 보인다 — 명세는 `/assets/jstRoadNmAddrApiSearch-*.js`에 있다.
+- 응답 `results.common`: `totalCount`, `currentPage`(명세엔 `currentPerPage`로 오기), `countPerPage`, `errorCode`(정상 `"0"`), `errorMessage`. 오류일 때 `juso`는 `null`, 결과 0건이면 `[]`. HTTP는 오류여도 200.
+- 숫자 필드(`lnbrMnnm`, `buldMnnm` 등)도 **모두 문자열**. 명세에 없는 `emdNo`도 온다.
+- `admCd` = **현행** 법정동코드 10자리. `mtYn` = `0` 대지 / `1` 산(YTN서울타워 산1-3으로 확인).
+- **건물관리번호 앞 19자리 ≠ PNU.** YTN서울타워: 지번 산1-3인데 `bdMgtSn` 부번은 `0011`. 낭성면 행정복지센터: `admCd` `4311131025`(청주시)인데 `bdMgtSn` 앞 10자리 `4371031026`(옛 청원군). 11번째 자리는 `0`·`1`(서울 대지)·`2`(산)가 모두 나온다 → 해석하지 않는다.
+- `relJibun`(관련지번)이 채워져 오는 건물이 있다(낭성면 행정복지센터: 이목리 120-4). 건물 → 필지 판정의 보조 근거로 쓸 수 있다. 여러 개일 때 구분 형식은 미확인.
+- 한 필지에 도로명주소 건물이 여럿인 실제 사례: 용산동2가 산1-3 (남산공원길 105, 126). 블로그 예시 상봉동 126-39는 도로명주소 건물이 0건.
+- 오류코드 E0008(두 글자 미만), E0013(SQL 예약어·`%=<>[]`) 실제로 확인.
+
 **아직 확인 안 된 것 (구현 중 실제 응답으로 확인하고 이 목록에서 지운다):**
 
-- [ ] juso 검색 API 응답 필드명(예: `admCd`, `mtYn`, `lnbrMnnm`, `lnbrSlno`, `bdMgtSn`)과 `mtYn` 값 체계(0/1?)
-- [ ] 건물관리번호 11번째 자리(산 여부)의 값 체계 → 확인되면 `splitBuildingMgmtNo`에 PNU 변환 추가
+- [ ] `relJibun`이 여러 개일 때 구분 형식
 - [ ] 건축HUB 오퍼레이션 영문명·파라미터(표제부, 총괄표제부, 부속지번), 응답의 PK 필드명
 - [ ] 부속지번을 **거꾸로**(이 필지를 부속지번으로 쓰는 건물) 찾을 수 있는지
 - [ ] VWorld 2D데이터 API의 레이어 ID(연속지적도, GIS 건물통합정보), PNU 속성 필터 방법, 공간 필터(geomFilter) 방법
@@ -185,8 +195,8 @@ pnu_api/
 
 1. [x] 키 발급 — `JUSO_KEY`, `VWORLD_KEY`는 `.env`에 있음. **`DATA_GO_KR_KEY`는 아직 `.env`에 없음** (사용자에게 확인)
 2. [x] `core/pnu.ts` + 테스트 (조립·해독·platGbCd 매핑·건물관리번호 분해), 법정동 해독, MCP `decode_pnu` — 커밋 d6aef0e, CI 통과
-3. [ ] **← 다음 작업.** juso 연동 → 주소 종류 판별(도로명/지번)과 후보 목록. 실제 응답을 `packages/core/fixtures/juso/`에 저장(키 값은 지우고)하고 그걸로 정규화 테스트
-4. [ ] 대장 조회(표제부·총괄표제부·부속지번)
+3. [x] juso 연동 → 주소 종류 판별(`classifyInput`)과 후보 목록(`searchAddress`), fixture 8개로 정규화 테스트 — `core/src/address.ts`
+4. [ ] **← 다음 작업.** 대장 조회(표제부·총괄표제부·부속지번). `DATA_GO_KR_KEY` 필요(아직 `.env`에 없음)
 5. [ ] 공간 조회(연속지적도·건물통합정보) + Turf.js 겹침 계산
 6. [ ] 관계 분류 + 불일치 판정, fixture 테스트(1:1, 1:N, N:1, N:M 실제 사례)
 7. [ ] MCP 도구 4개 추가 + Claude Code 연결 확인

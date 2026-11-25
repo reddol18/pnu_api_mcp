@@ -1,0 +1,51 @@
+{
+  "request": {
+    "keyword": "낭성면 행정복지센터",
+    "currentPage": 1,
+    "countPerPage": 10,
+    "resultType": "json",
+    "addInfoYn": "Y"
+  },
+  "response": {
+    "results": {
+      "common": {
+        "countPerPage": "10",
+        "errorMessage": "정상",
+        "errorCode": "0",
+        "totalCount": "1",
+        "currentPage": "1"
+      },
+      "juso": [
+        {
+          "siNm": "충청북도",
+          "lnbrMnnm": "120",
+          "bdKdcd": "0",
+          "jibunAddr": "충청북도 청주시 상당구 낭성면 이목리 120-3 낭성면 행정복지센터",
+          "bdMgtSn": "4371031026001200003056414",
+          "hemdNm": "충청북도 청주시 상당구 낭성면",
+          "roadAddr": "충청북도 청주시 상당구 낭성면 낭성시내길 21",
+          "bdNm": "낭성면 행정복지센터",
+          "rnMgtSn": "431114520141",
+          "buldMnnm": "21",
+          "hstryYn": "0",
+          "emdNm": "낭성면",
+          "lnbrSlno": "3",
+          "udrtYn": "0",
+          "detBdNmList": "",
+          "emdNo": "01",
+          "buldSlno": "0",
+          "relJibun": "충청북도 청주시 상당구 낭성면 이목리 120-4",
+          "zipNo": "28193",
+          "admCd": "4311131025",
+          "liNm": "이목리",
+          "mtYn": "0",
+          "roadAddrPart2": "",
+          "sggNm": "청주시 상당구",
+          "roadAddrPart1": "충청북도 청주시 상당구 낭성면 낭성시내길 21",
+          "engAddr": "21 Nangseongsinae-gil, Nangseong-myeon, Sangdang-gu, Cheongju-si, Chungcheongbuk-do",
+          "rn": "낭성시내길"
+        }
+      ]
+    }
+  }
+}

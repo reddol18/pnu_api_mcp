@@ -121,9 +121,10 @@ export function ledgerKeyToPnu(key: LedgerKey): string {
  * 도로명주소 건물관리번호 25자리를 자리별로 나눈다.
  * 구조: 법정동코드 10 + 산 여부 1 + 본번 4 + 부번 4 + 일련 6
  *
- * 산 여부 자리의 값 체계(PNU처럼 1/2인지, 도로명주소 API mtYn처럼 0/1인지)는
- * 아직 실제 응답으로 확인하지 않았다. 그래서 여기서는 해석하지 않고 원래 값을 돌려준다.
- * PNU로 바꾸는 일은 주소 API 응답(mtYn)으로 값 체계를 확인한 뒤 address 모듈에서 한다.
+ * 주의(실제 응답으로 확인, fixtures/juso): 이 번호는 발급 당시 값을 담고 있어서
+ * 앞 19자리를 PNU로 쓸 수 없다. 법정동코드가 옛 코드이거나 부번이 현재 지번과 다르고,
+ * 산 여부 자리에는 0·1·2가 모두 나온다. 그래서 해석하지 않고 원래 값을 돌려준다.
+ * PNU는 주소 검색 API의 admCd·mtYn·lnbrMnnm·lnbrSlno로 만든다(address.ts).
  */
 export interface BuildingMgmtNoParts {
   bjdongCode: string;

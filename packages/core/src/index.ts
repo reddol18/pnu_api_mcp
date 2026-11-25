@@ -1,4 +1,19 @@
 export {
+  type AddressCandidate,
+  type AddressSearchResult,
+  classifyInput,
+  type InputKind,
+  JUSO_SEARCH_URL,
+  JusoError,
+  type JusoRaw,
+  type JusoResponse,
+  normalizeJuso,
+  parseJusoResponse,
+  type SearchAddressOptions,
+  sanitizeKeyword,
+  searchAddress,
+} from './address.js';
+export {
   type BjdongEntry,
   type BjdongTable,
   type DecodedPnu,

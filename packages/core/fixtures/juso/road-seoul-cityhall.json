@@ -1,0 +1,80 @@
+{
+  "request": {
+    "keyword": "세종대로 110",
+    "currentPage": 1,
+    "countPerPage": 10,
+    "resultType": "json",
+    "addInfoYn": "Y"
+  },
+  "response": {
+    "results": {
+      "common": {
+        "countPerPage": "10",
+        "errorMessage": "정상",
+        "errorCode": "0",
+        "totalCount": "2",
+        "currentPage": "1"
+      },
+      "juso": [
+        {
+          "siNm": "서울특별시",
+          "lnbrMnnm": "31",
+          "bdKdcd": "0",
+          "jibunAddr": "서울특별시 중구 태평로1가 31 서울특별시청",
+          "bdMgtSn": "1114010300100310000019224",
+          "hemdNm": "서울특별시 중구 명동",
+          "roadAddr": "서울특별시 중구 세종대로 110 (태평로1가)",
+          "bdNm": "서울특별시청",
+          "rnMgtSn": "111402005001",
+          "buldMnnm": "110",
+          "hstryYn": "0",
+          "emdNm": "태평로1가",
+          "lnbrSlno": "0",
+          "udrtYn": "0",
+          "detBdNmList": "본관동, 신관",
+          "emdNo": "02",
+          "buldSlno": "0",
+          "relJibun": "",
+          "zipNo": "04524",
+          "admCd": "1114010300",
+          "liNm": "",
+          "mtYn": "0",
+          "roadAddrPart2": " (태평로1가)",
+          "sggNm": "중구",
+          "roadAddrPart1": "서울특별시 중구 세종대로 110",
+          "engAddr": "110 Sejong-daero, Jung-gu, Seoul",
+          "rn": "세종대로"
+        },
+        {
+          "siNm": "서울특별시",
+          "lnbrMnnm": "25",
+          "bdKdcd": "0",
+          "jibunAddr": "서울특별시 중구 북창동 25 구두수선대110",
+          "bdMgtSn": "1114011300100250000000002",
+          "hemdNm": "서울특별시 중구 소공동",
+          "roadAddr": "서울특별시 중구 세종대로14길 20-2 (북창동)",
+          "bdNm": "구두수선대110",
+          "rnMgtSn": "111404103189",
+          "buldMnnm": "20",
+          "hstryYn": "0",
+          "emdNm": "북창동",
+          "lnbrSlno": "0",
+          "udrtYn": "0",
+          "detBdNmList": "140113_4_0004",
+          "emdNo": "01",
+          "buldSlno": "2",
+          "relJibun": "",
+          "zipNo": "04526",
+          "admCd": "1114011300",
+          "liNm": "",
+          "mtYn": "0",
+          "roadAddrPart2": " (북창동)",
+          "sggNm": "중구",
+          "roadAddrPart1": "서울특별시 중구 세종대로14길 20-2",
+          "engAddr": "20-2 Sejong-daero 14-gil, Jung-gu, Seoul",
+          "rn": "세종대로14길"
+        }
+      ]
+    }
+  }
+}

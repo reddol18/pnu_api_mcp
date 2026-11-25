@@ -1,0 +1,51 @@
+{
+  "request": {
+    "keyword": "남산공원길 105",
+    "currentPage": 1,
+    "countPerPage": 10,
+    "resultType": "json",
+    "addInfoYn": "Y"
+  },
+  "response": {
+    "results": {
+      "common": {
+        "countPerPage": "10",
+        "errorMessage": "정상",
+        "errorCode": "0",
+        "totalCount": "1",
+        "currentPage": "1"
+      },
+      "juso": [
+        {
+          "siNm": "서울특별시",
+          "lnbrMnnm": "1",
+          "bdKdcd": "0",
+          "jibunAddr": "서울특별시 용산구 용산동2가 산1-3 YTN서울타워",
+          "bdMgtSn": "1117010200200010011026010",
+          "hemdNm": "서울특별시 용산구 용산2가동",
+          "roadAddr": "서울특별시 용산구 남산공원길 105 (용산동2가)",
+          "bdNm": "YTN서울타워",
+          "rnMgtSn": "111704103024",
+          "buldMnnm": "105",
+          "hstryYn": "0",
+          "emdNm": "용산동2가",
+          "lnbrSlno": "3",
+          "udrtYn": "0",
+          "detBdNmList": "",
+          "emdNo": "02",
+          "buldSlno": "0",
+          "relJibun": "",
+          "zipNo": "04340",
+          "admCd": "1117010200",
+          "liNm": "",
+          "mtYn": "1",
+          "roadAddrPart2": " (용산동2가)",
+          "sggNm": "용산구",
+          "roadAddrPart1": "서울특별시 용산구 남산공원길 105",
+          "engAddr": "105 Namsangongwon-gil, Yongsan-gu, Seoul",
+          "rn": "남산공원길"
+        }
+      ]
+    }
+  }
+}

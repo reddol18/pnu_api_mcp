@@ -9,7 +9,7 @@
     "typecheck": { "dependsOn": ["^build"] },
     "test": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "test/**", "data/**", "package.json", "tsconfig*.json"]
+      "inputs": ["src/**", "test/**", "data/**", "fixtures/**", "package.json", "tsconfig*.json"]
     },
     "dev": { "cache": false, "persistent": true }
   }

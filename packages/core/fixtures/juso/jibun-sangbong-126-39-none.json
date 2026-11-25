@@ -1,0 +1,21 @@
+{
+  "request": {
+    "keyword": "상봉동 126-39",
+    "currentPage": 1,
+    "countPerPage": 10,
+    "resultType": "json",
+    "addInfoYn": "Y"
+  },
+  "response": {
+    "results": {
+      "common": {
+        "countPerPage": "10",
+        "errorMessage": "정상",
+        "errorCode": "0",
+        "totalCount": "0",
+        "currentPage": "1"
+      },
+      "juso": []
+    }
+  }
+}

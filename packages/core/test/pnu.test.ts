@@ -98,11 +98,6 @@ describe('건물관리번호 25자리', () => {
     });
   });
 
-  it('앞 19자리가 PNU와 같은 구조다 (값 체계가 같다고 가정할 때)', () => {
-    const no = `${SANGBONG}000001`;
-    expect(no.slice(0, 19)).toBe(SANGBONG);
-  });
-
   it('형식 오류', () => {
     expect(() => splitBuildingMgmtNo('112601020010126003900000')).toThrow(PnuError);
   });
