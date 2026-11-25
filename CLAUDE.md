@@ -19,9 +19,16 @@
 
 ```
 packages/core   PNU·법정동·대장 키·주소 검색(juso)·대장 조회(건축HUB)·공간 조회(VWorld + Turf), 관계 분류 — 로직은 전부 여기
-packages/mcp    MCP 서버 (stdio). core만 호출. 도구 5개, 응답 줄이기는 format.ts. 루트 .mcp.json이 .env를 읽어 띄운다
+packages/mcp    MCP 서버 (stdio). core만 호출. 도구 5개, 응답 모양은 core의 present.ts. 루트 .mcp.json이 .env를 읽어 띄운다
 apps/web        Next.js 16. core만 호출(/api/analyze). 로컬 실행: pnpm --filter @pnu/web dev (루트 .env를 읽는다)
+infra           AWS 배포: template.yaml(CloudFormation), deploy.mjs, run.sh. zip은 GitHub Actions build-lambda가 만든다
 ```
+
+## 배포 (AWS, 계정 루트로 aws login)
+
+- AWS CLI는 `F:\aws_cli\aws.exe`(PATH에 없음). `aws login`으로 로그인, 리전 `ap-northeast-2`.
+- 순서: main에 push → `build-lambda` 성공 → `gh run download <id> -n pnu-web-lambda -D <폴더>` → `$env:AWS_CLI='F:\aws_cli\aws.exe'; $env:BUDGET_EMAIL='…'; node infra/deploy.mjs <zip>`.
+- AWS 리소스를 만들거나 바꾸는 명령은 실행 전에 무엇을 만드는지·비용을 사용자에게 보여 주고 확인받는다.
 
 ## 하네스
 

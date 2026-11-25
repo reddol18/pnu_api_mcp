@@ -295,7 +295,12 @@ pnu_api/
    - **현재 상태(2026-11-25):** GitHub에 푸시·CI 통과(`109eb89`). 사용자가 AWS CLI(2.32+) 설치 후 `aws login`까지 마침 → 다음 세션은 `aws sts get-caller-identity`로 계정만 확인하고 시작한다. 리소스를 만드는 명령은 무엇을 만드는지·비용을 먼저 보여 주고 확인받은 뒤 실행.
    - **정한 것:** 리전 서울(`ap-northeast-2`), CloudFront용 ACM 인증서만 `us-east-1`. API 키는 Secrets Manager(비밀 하나에 월 $0.40) 대신 **SSM Parameter Store 표준 파라미터**(저장 무료). CloudWatch 로그 보관 7일. 결제 예산 알림 $1 권장.
    - **도메인:** `reddol18.pe.kr` DNS는 가비아(`ns.gabia.co.kr` 등), 루트 A 레코드 4개는 블로그(GitHub Pages) — 건드리지 않는다. 순서: ① ACM 인증서 신청 → 확인용 CNAME을 가비아에 추가 ② CloudFront 대체 도메인 `pnu.reddol18.pe.kr` + 인증서 ③ 가비아에 `pnu` CNAME → `dXXXX.cloudfront.net`.
-   - **정할 것:** Next.js를 Lambda에 올리는 방식(OpenNext 등 — 지금 기준 문서로 확인하고 고른다). 원래 항목: Next.js 화면(지도에 필지·건물 겹쳐 표시) + Lambda 배포
+   - **정한 방식(2026-11-25):** OpenNext가 아니라 **Next standalone + AWS Lambda Web Adapter**(레이어 `LambdaAdapterLayerX86:30` = 1.1.0, 서울 리전에서 조회로 확인). 앱이 정적 페이지 + API 하나라 단순한 쪽. 스택 하나(`infra/template.yaml`): Lambda(nodejs22.x, 1024MB, 30초) + 함수 URL(AWS_IAM) + CloudFront OAC(함수 URL은 `InvokeFunctionUrl`·`InvokeFunction` 두 권한 필요, 2025-10~) + 로그 7일 + 예산 $1 알림. 키는 SSM `/pnu-web/*`(String, 표준)를 `{{resolve:ssm:…}}`로 Lambda 환경변수에.
+   - **빌드는 GitHub Actions(`build-lambda`)에서**, 배포는 로컬 `node infra/deploy.mjs <zip>`(`AWS_CLI`, `BUDGET_EMAIL` 환경변수). GitHub에 AWS 권한을 주지 않는다. 겪은 함정:
+     - `serverExternalPackages`로 뺀 워크스페이스 패키지(@pnu/core)는 standalone 추적에서 빠진다(Linux도) → core를 번들에 넣고 법정동 표 경로는 `PNU_BJDONG_TSV`(run.sh·next.config가 넣음).
+     - pnpm 기본 구조(.pnpm + 링크)를 `cp -rL`로 풀면 next가 `@swc/helpers`를 못 찾는다. Lambda zip의 심볼릭 링크 보존은 AWS 문서에 없다 → CI에서만 `pnpm-workspace.yaml`에 `nodeLinker: hoisted`를 덧붙여 평평하게 설치(명령줄 `--config.node-linker`는 pnpm 12에서 안 먹었다).
+     - Windows AWS CLI는 템플릿을 CP949로 읽어 한글 주석에서 실패 → `AWS_CLI_FILE_ENCODING=UTF-8`.
+   - **배포 결과(2026-11-25):** 스택 `pnu-web`, CloudFront `E3BARCV2I0L8QQ` = `d2pg5onr26vn0x.cloudfront.net`. 페이지·API(실제 키) 동작, 함수 URL 직접 호출은 403. zip 14.6MB(풀면 47.9MB). 남은 것: 가비아 `pnu` CNAME → `d2pg5onr26vn0x.cloudfront.net`. 원래 항목: Next.js 화면(지도에 필지·건물 겹쳐 표시) + Lambda 배포
 9. [ ] 블로그 글 ① 건물과 필지가 1:1이 아닐 때 ② MCP 서버로 만들기. 기존 `/make-pnu-code`, `/land-use-api`에서 링크
 
 ## 8. 2단계 이후
