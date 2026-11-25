@@ -204,7 +204,15 @@ packages/mcp               apps/web (Next.js)
 - **배경지도 키:** 브이월드 WMTS `https://api.vworld.kr/req/wmts/1.0.0/{key}/Base/{z}/{y}/{x}.png`(Base 레벨 6~19, 명세 확인). **실제로 Referer를 검사하지 않는다**(다른 도메인 Referer로도 타일이 나옴, 2026-11-25 확인) → 브라우저에 넣는 키는 누구나 쓸 수 있다. 그래서 **배경지도 전용 키**(`NEXT_PUBLIC_VWORLD_TILE_KEY`)를 따로 발급해 쓰고, 데이터 키(`VWORLD_KEY`)는 서버에만 둔다. 전용 키가 없으면 배경 없이 도형만 그린다.
   - **변경(2026-11-25): 전용 키 발급이 막혔다**(이미 키가 하나 있는 계정에서 발급 버튼이 나오지 않음, 서비스URL을 바꿔도 같음 — 원인은 미확인). 기존 키를 브라우저에 쓰면 2D데이터 한도를 남이 쓸 수 있어 쓰지 않는다. → **서버 타일 중계 + CDN 캐시**로 간다(아래 계획). OpenStreetMap 타일(키 없음)은 대안으로 남겨 둔다.
 
-#### 배경지도 타일 중계 계획 (8b, 아직 구현 안 함)
+#### 배경지도 — 구현(2026-11-25): CloudFront가 브이월드에서 직접 (Lambda 안 거침)
+
+- 아래 「중계 계획」(Lambda 라우트)보다 싸고 빨라서 바꿨다. 브이월드를 CloudFront 원본으로 두고 키는 원본 경로(`/req/wmts/1.0.0/{{resolve:ssm:/pnu-web/VWORLD_KEY}}/Base`)에. `/tiles/*` 동작에 CloudFront Function(`apps/web/cloudfront/tiles.js`, cloudfront-js-2.0, viewer request)이 레벨 6~19·한국 범위(경도 124~132, 위도 32.9~39)를 검사하고 `/z/y/x.png`로 바꾼다. 캐시 정책 30일.
+- 비용: CloudFront Functions 월 200만 회 무료, 요청·전송은 CloudFront 무료 구간 → 검색 1회에 타일 약 50장으로 잡으면 월 약 4만 검색까지 0원. Lambda 콜드 스타트 없음.
+- 확인된 사실: 브이월드 타일은 `Cache-Control: max-age=259200`(3일). **범위 밖 레벨(5, 20)에도 HTTP 200 + `application/xml` 오류 본문**을 준다 → 함수에서 막지 않으면 오류가 타일로 캐시된다.
+- 배포 확인: 첫 요청 Miss 0.30초, 다음 Hit 0.08초. 도쿄 403, 레벨 5·형식 오류 404(함수가 응답, 원본까지 안 감). 배포된 페이지·API·정적 파일 9개에 키 없음.
+- 로컬 `next dev`: `next.config.ts`가 개발 서버 단계에서만 `/tiles/*`를 브이월드로 rewrite(빌드 결과에 키가 들어가지 않게). 배경 끄기 `NEXT_PUBLIC_BASEMAP=none`.
+
+#### (참고) 처음 세운 Lambda 중계 계획 — 위 방식으로 대체
 
 목표: 키를 브라우저에 내보내지 않고 브이월드 배경지도를 쓴다. 서버(Lambda) 호출은 CDN 캐시에 없는 타일만.
 
@@ -291,7 +299,7 @@ pnu_api/
 5. [x] 공간 조회(연속지적도 `LP_PA_CBND_BUBUN`·도로명주소 건물 `LT_C_SPBD`) + Turf.js 겹침 계산 — `core/src/spatial.ts` `spatialParcelBuildings`·`spatialBuildingParcels`, fixture 20개
 6. [x] 관계 분류 + 불일치 판정 — `core/src/relation.ts`(계산), `core/src/analyze.ts`(`analyze(input)`이 출발점 결정·조회·판정). 실제 사례 테스트: 1:1(남산공원길 105 공간), 1:N(낭성면), N:1(정원팰리스 대장), N:M(서울시청 대장, 정원팰리스 공간). §4-1 참고
 7. [x] MCP 도구 4개 추가(`resolve_address`, `parcel_buildings`, `building_parcels`, `classify_relation`) — 응답은 도형·원 응답을 빼고 PNU별 지번주소·한 줄 요약을 붙인다(2~3KB). stdio로 실제 API 호출 확인. `.mcp.json`(키 없음, `.env`를 읽음). Claude Code에서 "남산공원길 105 건물이 필지 몇 개에 걸쳐 있어?"로 확인(2026-11-25)
-8. [ ] **← 다음 작업.** 8a [x] Next.js 화면 로컬 동작(§4-3) — 검색·결과 패널·지도·API·캐시·요청 제한. 8b [ ] 배경지도: 전용 키 발급이 막혀 **서버 타일 중계 + CDN 캐시**로 변경, 계획은 §4-3 「배경지도 타일 중계 계획」. 8c [ ] Lambda 배포(CloudFront 타일 캐시 포함).
+8. [x] 8a [x] Next.js 화면 로컬 동작(§4-3) — 검색·결과 패널·지도·API·캐시·요청 제한. 8b [x] 배경지도: 전용 키 발급이 막혀 **CloudFront가 브이월드에서 직접**(§4-3 「배경지도 — 구현」). 8c [x] Lambda 배포 — `https://pnu.reddol18.pe.kr`.
    - **현재 상태(2026-11-25):** GitHub에 푸시·CI 통과(`109eb89`). 사용자가 AWS CLI(2.32+) 설치 후 `aws login`까지 마침 → 다음 세션은 `aws sts get-caller-identity`로 계정만 확인하고 시작한다. 리소스를 만드는 명령은 무엇을 만드는지·비용을 먼저 보여 주고 확인받은 뒤 실행.
    - **정한 것:** 리전 서울(`ap-northeast-2`), CloudFront용 ACM 인증서만 `us-east-1`. API 키는 Secrets Manager(비밀 하나에 월 $0.40) 대신 **SSM Parameter Store 표준 파라미터**(저장 무료). CloudWatch 로그 보관 7일. 결제 예산 알림 $1 권장.
    - **도메인:** `reddol18.pe.kr` DNS는 가비아(`ns.gabia.co.kr` 등), 루트 A 레코드 4개는 블로그(GitHub Pages) — 건드리지 않는다. 순서: ① ACM 인증서 신청 → 확인용 CNAME을 가비아에 추가 ② CloudFront 대체 도메인 `pnu.reddol18.pe.kr` + 인증서 ③ 가비아에 `pnu` CNAME → `dXXXX.cloudfront.net`.
@@ -301,7 +309,7 @@ pnu_api/
      - pnpm 기본 구조(.pnpm + 링크)를 `cp -rL`로 풀면 next가 `@swc/helpers`를 못 찾는다. Lambda zip의 심볼릭 링크 보존은 AWS 문서에 없다 → CI에서만 `pnpm-workspace.yaml`에 `nodeLinker: hoisted`를 덧붙여 평평하게 설치(명령줄 `--config.node-linker`는 pnpm 12에서 안 먹었다).
      - Windows AWS CLI는 템플릿을 CP949로 읽어 한글 주석에서 실패 → `AWS_CLI_FILE_ENCODING=UTF-8`.
    - **배포 결과(2026-11-25):** 스택 `pnu-web`, CloudFront `E3BARCV2I0L8QQ` = `d2pg5onr26vn0x.cloudfront.net`. 페이지·API(실제 키) 동작, 함수 URL 직접 호출은 403. zip 14.6MB(풀면 47.9MB). 가비아 `pnu` CNAME → `d2pg5onr26vn0x.cloudfront.net` 추가 후 **`https://pnu.reddol18.pe.kr` 동작 확인**(HTTPS 200, http→https 301, API 정상). Lambda 동시 실행 한도 1000. 원래 항목: Next.js 화면(지도에 필지·건물 겹쳐 표시) + Lambda 배포
-9. [ ] 블로그 글 ① 건물과 필지가 1:1이 아닐 때 ② MCP 서버로 만들기. 기존 `/make-pnu-code`, `/land-use-api`에서 링크
+9. [ ] **← 다음 작업.** 블로그 글 ① 건물과 필지가 1:1이 아닐 때 ② MCP 서버로 만들기. 기존 `/make-pnu-code`, `/land-use-api`에서 링크
 
 ## 8. 2단계 이후
 
