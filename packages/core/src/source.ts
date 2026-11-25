@@ -28,11 +28,12 @@ export async function settle<T>(p: Promise<T[]>): Promise<SourceResult<T>> {
 }
 
 /**
- * 실패 종류: 다시 물어보면 되는지(retry), 설정을 고쳐야 하는지(config), 내일 다시 해야 하는지(quota)
+ * 실패 종류: 다시 물어보면 되는지(retry), 설정을 고쳐야 하는지(config), 내일 다시 해야 하는지(quota),
+ * 장애로 보고 호출을 건너뛰었는지(skipped, 회로 차단기)
  * 코드 출처: 실제 응답(30·05·INCORRECT_KEY), VWorld 2D데이터 오류표, juso 검색 API 오류표.
  * data.go.kr 게이트웨이의 다른 사유코드(한도 초과 등)는 아직 확인 안 함 → unknown(재시도 안내)으로 둔다.
  */
-export type FailureKind = 'retry' | 'config' | 'quota' | 'unknown';
+export type FailureKind = 'retry' | 'config' | 'quota' | 'unknown' | 'skipped';
 
 const CONFIG_CODES = new Set([
   'NO_KEY',
@@ -46,11 +47,15 @@ const CONFIG_CODES = new Set([
 ]);
 const QUOTA_CODES = new Set(['OVER_REQUEST_LIMIT']); // VWorld: 일일 제한량 초과
 const RETRY_CODES = new Set(['TIMEOUT', 'NETWORK', '05', 'SYSTEM_ERROR', '-999']);
+/** 회로 차단기가 열려 호출을 건너뜀(breaker.ts). 잠시 뒤 다시 물으면 된다 */
+export const CIRCUIT_OPEN_CODE = 'CIRCUIT_OPEN';
 
 export function failureKind(code: string): FailureKind {
   if (CONFIG_CODES.has(code)) return 'config';
   if (QUOTA_CODES.has(code)) return 'quota';
   if (RETRY_CODES.has(code) || /^HTTP_5\d\d$/.test(code)) return 'retry';
+  // 차단기는 자기 실패를 세지 않는다(위 retry 목록과 따로) — 재시도 안내만 같다
+  if (code === CIRCUIT_OPEN_CODE) return 'skipped';
   return 'unknown';
 }
 
@@ -76,14 +81,20 @@ export function describeIncomplete(failed: FailedSource[]): Incomplete | null {
   const kinds = new Set(failed.map((f) => f.kind));
   const names = failed.map((f) => `${f.source}(${f.code})`).join(', ');
   const parts: string[] = [`일부 자료를 받지 못해 결과가 빠졌을 수 있다: ${names}.`];
-  if (kinds.has('retry') || kinds.has('unknown')) {
+  if (kinds.has('skipped')) {
+    parts.push(
+      '해당 공공 API가 연달아 응답하지 않아 장애로 보고 잠시(30초) 호출을 건너뛰었다(기다리지 않고 바로 응답).',
+    );
+  }
+  if (kinds.has('retry') || kinds.has('unknown') || kinds.has('skipped')) {
     parts.push('공공 API가 잠깐 응답하지 않은 경우가 대부분이다. 잠시(수십 초) 뒤 같은 질문을 다시 하면 된다.');
   }
   if (kinds.has('config')) {
     parts.push('API 키나 VWORLD_DOMAIN 설정 문제다. 다시 물어도 같으니 .env(또는 MCP 서버 환경변수)를 확인해야 한다.');
   }
   if (kinds.has('quota')) parts.push('API 일일 호출 한도를 넘었다. 내일 다시 하거나 운영계정 한도를 늘려야 한다.');
-  return { failed, retryable: kinds.has('retry') || kinds.has('unknown'), message: parts.join(' ') };
+  const retryable = kinds.has('retry') || kinds.has('unknown') || kinds.has('skipped');
+  return { failed, retryable, message: parts.join(' ') };
 }
 
 export function failedFrom<T>(source: string, r: SourceResult<T>): FailedSource[] {

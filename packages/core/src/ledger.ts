@@ -15,8 +15,9 @@
  *   (05 SERVICETIMEOUT_ERROR는 HTTP 503으로 간헐적으로 옴 → 재시도, 30 등록되지 않은 키는 HTTP 403).
  * - 요청 변수에 부속지번 필드가 없다 → "이 필지를 부속지번으로 쓰는 건물"을 거꾸로 찾을 수 없다.
  */
+import { CircuitBreaker } from './breaker.js';
 import { formatPnu, type LedgerKey, type PnuParts, pnuToLedgerKey } from './pnu.js';
-import { defaultSleep, isTimeoutError, type SourceResult, settle } from './source.js';
+import { CIRCUIT_OPEN_CODE, defaultSleep, failureKind, isTimeoutError, type SourceResult, settle } from './source.js';
 
 export const BLD_HUB_BASE_URL = 'https://apis.data.go.kr/1613000/BldRgstHubService';
 
@@ -276,7 +277,15 @@ export interface LedgerOptions {
   fetch?: typeof fetch;
   /** 테스트용 (재시도 대기) */
   sleep?: (ms: number) => Promise<void>;
+  /**
+   * 회로 차단기. 일시 오류가 연달아 나면 잠시 호출하지 않고 바로 CIRCUIT_OPEN으로 실패한다.
+   * 없으면 쓰지 않는다. analyze()는 기본으로 defaultLedgerBreaker(프로세스 공용)를 넘긴다.
+   */
+  breaker?: CircuitBreaker;
 }
+
+/** 프로세스 공용 대장 API 회로 차단기 (연속 5번 실패 → 30초 열림) */
+export const defaultLedgerBreaker = new CircuitBreaker();
 
 function decodeKey(key: string): string {
   if (!key.includes('%')) return key;
@@ -335,14 +344,38 @@ async function requestPage(
   return parseLedgerPage(json);
 }
 
+/** 차단기를 거쳐 한 번 호출한다. 일시 오류(failureKind 'retry')만 실패로 센다 */
+async function requestPageGuarded(op: LedgerOperation, key: LedgerKey, pageNo: number, opts: LedgerOptions) {
+  const b = opts.breaker;
+  if (!b) return requestPage(op, key, pageNo, opts);
+  if (!b.allow()) {
+    throw new LedgerError(
+      `건축물대장 API가 연달아 응답하지 않아 잠시(${Math.ceil(b.remainingMs() / 1000) || 1}초) 건너뜁니다`,
+      CIRCUIT_OPEN_CODE,
+    );
+  }
+  try {
+    const page = await requestPage(op, key, pageNo, opts);
+    b.success();
+    return page;
+  } catch (e) {
+    if (e instanceof LedgerError && failureKind(e.code) === 'retry') b.failure();
+    else b.release();
+    throw e;
+  }
+}
+
 async function requestPageWithRetry(op: LedgerOperation, key: LedgerKey, pageNo: number, opts: LedgerOptions) {
   const retries = opts.retries ?? 2;
   const sleep = opts.sleep ?? defaultSleep;
   for (let attempt = 0; ; attempt++) {
     try {
-      return await requestPage(op, key, pageNo, opts);
+      return await requestPageGuarded(op, key, pageNo, opts);
     } catch (e) {
+      // 차단기가 열렸으면(CIRCUIT_OPEN) 재시도하지 않고 바로 돌려준다
       if (!(e instanceof LedgerError) || !RETRYABLE.has(e.code) || attempt >= retries) throw e;
+      // 이번 실패로 차단기가 열렸으면 기다렸다 다시 해 봐야 소용없다
+      if (opts.breaker?.current === 'open') throw e;
       // 장애는 시간대로 몰려서 같은 순간에 다시 보내면 잘 안 된다 → 0.5초, 1초로 조금씩 벌린다
       await sleep(500 * 2 ** attempt);
     }

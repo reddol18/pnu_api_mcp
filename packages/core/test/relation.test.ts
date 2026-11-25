@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { type AnalysisResult, analyze, type BuildingAnalysis, classify, type ParcelAnalysis } from '../src/index.js';
+import {
+  type AnalysisResult,
+  analyze,
+  type BuildingAnalysis,
+  CircuitBreaker,
+  classify,
+  type ParcelAnalysis,
+} from '../src/index.js';
 import { fakeApis, KEYS, PNU } from './fake-apis.js';
 
 const NAMSAN_1_11 = '1117010200200010011';
@@ -189,7 +196,9 @@ describe('입력 처리', () => {
       if (String(input).includes('apis.data.go.kr')) throw new DOMException('timeout', 'TimeoutError');
       return apis.fetch(input, init);
     }) as typeof fetch;
-    const r = await analyze(PNU.cityhall, { ...KEYS, fetch: flaky, sleep: async () => {} });
+    // 차단기는 이 테스트만의 것을 쓴다(공용을 열면 다음 테스트까지 건너뛴다)
+    const ledgerBreaker = new CircuitBreaker();
+    const r = await analyze(PNU.cityhall, { ...KEYS, fetch: flaky, sleep: async () => {}, ledgerBreaker });
     const a = parcelOf(r);
     expect(a.ledger.status).toBe('error');
     expect(a.spatial.status).toBe('ok'); // 공간 결과는 그대로 보여 준다

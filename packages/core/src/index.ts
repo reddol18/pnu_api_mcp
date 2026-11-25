@@ -35,9 +35,11 @@ export {
   loadBjdongTable,
   parseBjdongTsv,
 } from './bjdong.js';
+export { type BreakerState, CircuitBreaker, type CircuitBreakerOptions } from './breaker.js';
 export {
   type AttachedJibunRecord,
   BLD_HUB_BASE_URL,
+  defaultLedgerBreaker,
   fetchLedgerItems,
   getAttachedJibuns,
   getRecapTitles,
@@ -107,6 +109,7 @@ export {
   spatialViewFromParcel,
 } from './relation.js';
 export {
+  CIRCUIT_OPEN_CODE,
   type CodedError,
   describeIncomplete,
   type FailedSource,

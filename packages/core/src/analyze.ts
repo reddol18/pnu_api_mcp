@@ -7,7 +7,8 @@
  */
 import { type AddressCandidate, classifyInput, type InputKind, parseAddressNumber, searchAddress } from './address.js';
 import { findBjdongByName, loadBjdongTable } from './bjdong.js';
-import { type LedgerOptions, lookupParcelLedger, type ParcelLedger } from './ledger.js';
+import type { CircuitBreaker } from './breaker.js';
+import { defaultLedgerBreaker, type LedgerOptions, lookupParcelLedger, type ParcelLedger } from './ledger.js';
 import { formatJibun, formatPnu, parsePnu } from './pnu.js';
 import {
   type BuildingStartContext,
@@ -53,6 +54,8 @@ export interface AnalyzeOptions {
   /** 테스트용 */
   fetch?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
+  /** 대장 API 회로 차단기. 기본은 프로세스 공용(defaultLedgerBreaker), null이면 쓰지 않는다 */
+  ledgerBreaker?: CircuitBreaker | null;
 }
 
 /** 대장·공간 근거를 따로 보여 주고, 둘이 같은지 알려 준다 */
@@ -127,7 +130,8 @@ function vworldOpts(o: AnalyzeOptions): VworldOptions {
 }
 
 function ledgerOpts(o: AnalyzeOptions): LedgerOptions {
-  return { key: o.dataGoKrKey ?? '', ...common(o) };
+  const breaker = o.ledgerBreaker === undefined ? defaultLedgerBreaker : o.ledgerBreaker;
+  return { key: o.dataGoKrKey ?? '', ...common(o), ...(breaker && { breaker }) };
 }
 
 /** 관계 종류와 필지 목록이 둘 다 같아야 일치. 한쪽이라도 판정 못 하면 null */
@@ -236,7 +240,8 @@ function errorResult(base: { input: string; inputKind: InputKind }, e: unknown):
       : kind === 'quota'
         ? `API 일일 호출 한도를 넘었다(${error.code}). 내일 다시 하거나 운영계정 한도를 늘려야 한다.`
         : `공공 API가 응답하지 않았다(${error.code}). 잠시(수십 초) 뒤 같은 질문을 다시 하면 된다.`;
-  return { status: 'error', ...base, error, retryable: kind === 'retry' || kind === 'unknown', message };
+  const retryable = kind === 'retry' || kind === 'unknown' || kind === 'skipped';
+  return { status: 'error', ...base, error, retryable, message };
 }
 
 /**
