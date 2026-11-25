@@ -29,9 +29,11 @@ Parameters:
     Description: 예산·차단 스위치 알림을 받을 이메일
   MemorySize:
     Type: Number
-    Default: 1024
+    Default: 512
     AllowedValues: [512, 1024]
-    Description: Lambda 메모리(MB). 실사용 최대 159MB, 처리 시간 대부분은 공공 API 대기(이슈 #4)
+    Description: >-
+      Lambda 메모리(MB). 2026-11-25 측정(이슈 #4): 512MB에서 판정 268~708ms(1024MB 때 864~925ms),
+      콜드 스타트 825ms(1024MB 806~968ms), 최대 156MB → 512로 낮춤
   ReservedConcurrency:
     Type: Number
     Default: 100

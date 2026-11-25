@@ -287,6 +287,15 @@ breakscale_wrap에는 비용 계산이 없다(README 「한계」). 시뮬레이
 | ③ DynamoDB 캐시      | 하루 1만 건이면 월 약 $0.75, 1rps 상시면 약 $6.5 | 적중 30% 가정 시 1rps에서 Lambda 약 $10 절감. 항목 5KB·적중률은 가정                                                |
 | ④ 512MB              | $0                                               | 처리 시간이 같다면 Lambda 비용 절반, 무료로 받는 양 월 약 92만 건. 대부분 공공 API 대기라 가능성은 높지만 측정 필요 |
 
+#### 개선 구현·배포 결과 (2026-11-25, 이슈 #1~#5)
+
+- **① 회로 차단기**(`packages/core/src/breaker.ts`): 대장 API 일시 오류(`failureKind` retry)가 연속 5번이면 30초 열림 → `CIRCUIT_OPEN`(종류 `skipped`, 재시도 안내) 즉시 응답, 열린 뒤에는 재시도 대기도 하지 않는다. 반열림 시험 하나로 복구. `analyze()`가 프로세스 공용 차단기를 쓴다(MCP·웹 공통). 모의(`pnu_hub_outage_breaker`, 차단기가 열린 뒤 처리 0.9초 가정): 장애 90초·10rps에서 동시 실행 최대 **97 → 33**, Lambda 약 7,800 → 2,000 GB-초, 실패 0%.
+- **② 예약 동시 실행 100**: 배포 확인(`get-function-concurrency` 100). 거절 응답 모양은 아직 확인 못 함(아래).
+- **③ DynamoDB 캐시**(`apps/web/lib/dynamo-cache.ts`, 테이블 `pnu-web-cache`): 메모리 → DynamoDB → 조회 순. 키는 입력 SHA-256, 값 gzip, TTL 7일, 호출당 300ms 제한·실패 시 캐시 없이 처리. 배포 후 판정 6건 → 항목 6개 저장 확인, 같은 질문 두 번째 0.06초. 로그 `{"cache":"memory|shared|miss"}`로 적중률을 본다.
+- **④ 512MB**: 공개 예시 6곳 첫 조회 Duration 268~708ms(첫 호출 1,965ms는 새 인스턴스의 첫 외부 연결), 콜드 스타트 825ms, 최대 메모리 156MB. 1024MB(864~925ms, 806~968ms)보다 나쁘지 않아 **512로 확정**(템플릿 기본값도 512).
+- **⑤ 차단 스위치**: 경보 `pnu-web-usage-kill-switch`(5분 GB-초 > 10,000) → SNS → `pnu-web-kill-switch`가 동시 실행 0. 배포 확인. **동시 실행 0 상태의 실제 응답(CloudFront를 거친 상태 코드·본문)과 화면 안내는 아직 시험 안 함** — 잠깐 서비스를 멈추는 시험이라 사용자 확인 뒤 한다.
+- 확인된 사실: 로그 REPORT의 Billed Duration에 Init Duration이 들어간다(예: Duration 54ms + Init 825ms → Billed 880ms) → 콜드 스타트 시간도 과금된다.
+
 ### MCP 도구
 
 | 도구                | 입력                         | 출력                                                       |
