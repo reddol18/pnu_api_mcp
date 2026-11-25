@@ -207,6 +207,21 @@ describe('lookupParcelLedger', () => {
     expect(r.attachedJibuns.status).toBe('ok');
   });
 
+  it('503/05가 계속되면 0.5초·1초 간격으로 두 번 더 해 보고 포기한다', async () => {
+    const f = vi.fn(async () => new Response(responseText('error-service-timeout'), { status: 503 }));
+    const waits: number[] = [];
+    const r = await lookupParcelLedger(CITYHALL, {
+      key: 'K',
+      fetch: f as unknown as typeof fetch,
+      sleep: async (ms) => {
+        waits.push(ms);
+      },
+    });
+    expect(r.titles).toMatchObject({ status: 'error', error: { code: '05' } });
+    expect(f).toHaveBeenCalledTimes(9); // 3 오퍼레이션 × 3번
+    expect(waits.sort((a, b) => a - b)).toEqual([500, 500, 500, 1000, 1000, 1000]);
+  });
+
   it('시간 초과는 재시도한다', async () => {
     let calls = 0;
     const f = vi.fn(async () => {

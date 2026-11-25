@@ -260,7 +260,11 @@ export function parseLedgerPage(json: unknown): LedgerPage {
 export interface LedgerOptions {
   /** 공공데이터포털 인증키 (DATA_GO_KR_KEY). 인코딩 키(%포함)·디코딩 키 모두 받는다 */
   key: string;
-  /** 요청 하나의 제한 시간. 기본 5000ms */
+  /**
+   * 요청 하나의 제한 시간. 기본 2000ms.
+   * 실험(설계 §4-2): 성공은 60~131ms, 실패는 언제나 약 5.1초 뒤 503/05(게이트웨이 백엔드 제한).
+   * 2초 안에 안 오면 실패가 거의 확실하니 5초를 다 기다리지 않는다.
+   */
   timeoutMs?: number;
   /** 일시 오류(HTTP 503 / 사유코드 05 / 시간 초과) 재시도 횟수. 기본 2 */
   retries?: number;
@@ -285,6 +289,7 @@ function decodeKey(key: string): string {
 
 // 05·503은 간헐적 게이트웨이 오류. 보통 100ms 안팎인 응답이 가끔 멈추는 것도 실제로 봤다(TIMEOUT).
 const RETRYABLE = new Set(['05', 'HTTP_503', 'TIMEOUT']);
+export const LEDGER_TIMEOUT_MS = 2000;
 
 async function requestPage(
   op: LedgerOperation,
@@ -306,7 +311,9 @@ async function requestPage(
   const doFetch = opts.fetch ?? fetch;
   let res: Response;
   try {
-    res = await doFetch(`${BLD_HUB_BASE_URL}/${op}?${params}`, { signal: AbortSignal.timeout(opts.timeoutMs ?? 5000) });
+    res = await doFetch(`${BLD_HUB_BASE_URL}/${op}?${params}`, {
+      signal: AbortSignal.timeout(opts.timeoutMs ?? LEDGER_TIMEOUT_MS),
+    });
   } catch (e) {
     const timeout = isTimeoutError(e);
     // URL에 키가 들어 있으므로 원인 메시지는 붙이지 않는다
@@ -336,7 +343,8 @@ async function requestPageWithRetry(op: LedgerOperation, key: LedgerKey, pageNo:
       return await requestPage(op, key, pageNo, opts);
     } catch (e) {
       if (!(e instanceof LedgerError) || !RETRYABLE.has(e.code) || attempt >= retries) throw e;
-      await sleep(300 * (attempt + 1));
+      // 장애는 시간대로 몰려서 같은 순간에 다시 보내면 잘 안 된다 → 0.5초, 1초로 조금씩 벌린다
+      await sleep(500 * 2 ** attempt);
     }
   }
 }
