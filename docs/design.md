@@ -21,7 +21,7 @@
 - 지번주소, 도로명주소, 19자리 PNU 세 가지 입력을 모두 받는다. 산 번지 포함.
 - 결과를 `1:1`, `1:N`, `N:1`, `N:M`으로 분류하고, 대장·공간 근거를 따로 보여 준다.
 - Claude Code에서 MCP로 "이 주소 건물이 필지 몇 개에 걸쳐 있어?"에 답한다.
-- 블로그 글 2편 이상: ① 건물과 필지가 1:1이 아닐 때 ② MCP 서버로 만들기.
+- 블로그 글: ① 건물과 필지가 1:1이 아닐 때 ② MCP 서버로 만들기 — 한 편으로 묶어 게시(2026-11-25, https://reddol18.pe.kr/pnu-api-mcp).
 
 ### 범위 밖 (1단계)
 
@@ -380,7 +380,8 @@ pnu_api/
      - pnpm 기본 구조(.pnpm + 링크)를 `cp -rL`로 풀면 next가 `@swc/helpers`를 못 찾는다. Lambda zip의 심볼릭 링크 보존은 AWS 문서에 없다 → CI에서만 `pnpm-workspace.yaml`에 `nodeLinker: hoisted`를 덧붙여 평평하게 설치(명령줄 `--config.node-linker`는 pnpm 12에서 안 먹었다).
      - Windows AWS CLI는 템플릿을 CP949로 읽어 한글 주석에서 실패 → `AWS_CLI_FILE_ENCODING=UTF-8`.
    - **배포 결과(2026-11-25):** 스택 `pnu-web`, CloudFront `E3BARCV2I0L8QQ` = `d2pg5onr26vn0x.cloudfront.net`. 페이지·API(실제 키) 동작, 함수 URL 직접 호출은 403. zip 14.6MB(풀면 47.9MB). 가비아 `pnu` CNAME → `d2pg5onr26vn0x.cloudfront.net` 추가 후 **`https://pnu.reddol18.pe.kr` 동작 확인**(HTTPS 200, http→https 301, API 정상). Lambda 동시 실행 한도 1000. 원래 항목: Next.js 화면(지도에 필지·건물 겹쳐 표시) + Lambda 배포
-9. [ ] **← 다음 작업.** 블로그 글 ① 건물과 필지가 1:1이 아닐 때 ② MCP 서버로 만들기. 기존 `/make-pnu-code`, `/land-use-api`에서 링크
+9. [x] 블로그 글 — 계획한 두 편(① 건물과 필지가 1:1이 아닐 때 ② MCP 서버로 만들기)을 **한 편으로** 묶어 끝냈다(사용자 결정, 2026-11-25): https://reddol18.pe.kr/pnu-api-mcp . 기존 `/make-pnu-code`, `/land-use-api`에서 링크.
+10. [ ] **← 다음 작업.** 운영 정리: 자동 차단 dry-run 기록을 보고 `GuardDryRun=false` 결정(이슈 #8), 크롤러 미확인 토큰 확인(#10), 5xx 경보(#11), 외부 가동 확인(#12). 그다음 §8(2단계).
 
 ## 8. 2단계 이후
 
