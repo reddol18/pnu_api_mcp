@@ -110,6 +110,34 @@ Resources:
         SigningBehavior: always
         SigningProtocol: sigv4
 
+  # 배경지도 타일: Lambda를 거치지 않고 CloudFront가 브이월드에서 직접 받아 캐시한다(설계 §4-3 「배경지도」)
+  TilesFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: pnu-web-tiles
+      AutoPublish: true
+      FunctionConfig:
+        Comment: /tiles/{z}/{y}/{x}.png 검사(레벨 6~19, 한국 범위)와 주소 바꾸기
+        Runtime: cloudfront-js-2.0
+      # deploy.mjs가 apps/web/cloudfront/tiles.js 내용으로 바꿔 넣는다(코드 원본은 한 곳에만 둔다)
+      FunctionCode: __TILES_FUNCTION_CODE__
+
+  TilesCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: pnu-web-tiles-30d
+        Comment: 배경지도 타일 30일 (브이월드는 max-age 3일을 주지만 배경지도는 자주 바뀌지 않는다)
+        MinTTL: 2592000
+        DefaultTTL: 2592000
+        MaxTTL: 31536000
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: false
+          EnableAcceptEncodingBrotli: false
+          HeadersConfig: { HeaderBehavior: none }
+          CookiesConfig: { CookieBehavior: none }
+          QueryStringsConfig: { QueryStringBehavior: none }
+
   Distribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -131,6 +159,13 @@ Resources:
             CustomOriginConfig:
               OriginProtocolPolicy: https-only
               OriginSSLProtocols: [TLSv1.2]
+          - Id: vworld
+            DomainName: api.vworld.kr
+            # WMTS: /req/wmts/1.0.0/{key}/Base/{z}/{y}/{x}.png (명세). 키는 CloudFront 설정 안에만 있고 브라우저로 나가지 않는다
+            OriginPath: "/req/wmts/1.0.0/{{resolve:ssm:/pnu-web/VWORLD_KEY}}/Base"
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
         DefaultCacheBehavior:
           TargetOriginId: lambda
           ViewerProtocolPolicy: redirect-to-https
@@ -149,6 +184,16 @@ Resources:
             CachedMethods: [GET, HEAD]
             Compress: true
             CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # Managed-CachingOptimized
+          - PathPattern: /tiles/*
+            TargetOriginId: vworld
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: false
+            CachePolicyId: !Ref TilesCachePolicy
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt TilesFunction.FunctionARN
 
   Budget:
     Type: AWS::Budgets::Budget

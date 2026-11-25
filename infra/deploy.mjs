@@ -3,7 +3,9 @@
  * pnu-web 배포: Lambda zip을 S3에 올리고 CloudFormation 스택(infra/template.yaml)을 만들거나 갱신한다.
  *
  * 사용:
- *   node infra/deploy.mjs <lambda zip 경로> [--certificate-arn arn:...] [--plan]
+ *   node infra/deploy.mjs <lambda zip 경로> [--certificate-arn arn:...] [--plan | --preview]
+ *   --plan     계정·버킷·인증서·함수 코드 크기만 확인
+ *   --preview  CloudFormation 변경 목록만 만들어 보여 주고 지운다(적용 안 함)
  * 환경변수:
  *   AWS_CLI       aws 실행 파일 경로 (기본 "aws")
  *   BUDGET_EMAIL  예산 알림 이메일 (저장소에 넣지 않으려고 환경변수로만 받는다)
@@ -14,7 +16,8 @@
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 const args = process.argv.slice(2);
@@ -30,7 +33,34 @@ const aws = process.env.AWS_CLI || 'aws';
 // biome-ignore lint/suspicious/noUndeclaredEnvVars: turbo 태스크가 아닌 배포 스크립트
 const region = process.env.AWS_REGION || 'ap-northeast-2';
 const stack = 'pnu-web';
-const templateFile = path.join(import.meta.dirname, 'template.yaml');
+const templateSource = path.join(import.meta.dirname, 'template.yaml');
+const tilesFunctionFile = path.join(import.meta.dirname, '../apps/web/cloudfront/tiles.js');
+
+/**
+ * 템플릿 사본에 CloudFront Function 코드를 끼워 넣는다(코드 원본은 apps/web/cloudfront/tiles.js 한 곳).
+ * 주석 줄은 뺀다(함수 크기 제한·가독성). YAML 블록 문자열로 넣는다.
+ */
+function buildTemplate() {
+  const code = readFileSync(tilesFunctionFile, 'utf8')
+    .split(/\r?\n/)
+    .filter((l) => !/^\s*\/\//.test(l))
+    .join('\n')
+    .trim();
+  const yaml = readFileSync(templateSource, 'utf8');
+  const marker = /^(\s*)FunctionCode: __TILES_FUNCTION_CODE__\s*$/m;
+  const m = yaml.match(marker);
+  if (!m) throw new Error('템플릿에 __TILES_FUNCTION_CODE__ 자리가 없습니다');
+  const indent = `${m[1]}  `;
+  const block = `${m[1]}FunctionCode: |\n${code
+    .split('\n')
+    .map((l) => (l ? indent + l : ''))
+    .join('\n')}`;
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'pnu-web-cfn-'));
+  const file = path.join(dir, 'template.yaml');
+  writeFileSync(file, yaml.replace(marker, block));
+  console.log(`CloudFront Function 코드 ${Buffer.byteLength(code)} bytes`);
+  return { file, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
+}
 
 if (!zip) {
   console.error('사용: node infra/deploy.mjs <lambda zip> [--certificate-arn arn] [--plan]');
@@ -79,6 +109,8 @@ const key = `lambda/pnu-web-${hash}.zip`;
 console.log(`계정 ${account}, 리전 ${region}, 스택 ${stack}`);
 console.log(`버킷 ${bucket}, 코드 ${key} (${(body.length / 1024 / 1024).toFixed(1)} MB)`);
 console.log(`인증서 ${certArn}`);
+const template = buildTemplate();
+process.on('exit', template.cleanup);
 if (planOnly) {
   console.log('--plan: 여기까지만 확인하고 끝냅니다');
   process.exit(0);
@@ -116,28 +148,48 @@ if (!tryRun(['s3api', 'head-object', '--bucket', bucket, '--key', key]).ok) {
   console.log('같은 zip이 이미 있어 올리지 않습니다');
 }
 
-console.log('CloudFormation 배포… (CloudFront를 처음 만들 때는 수 분 걸립니다)');
-run(
-  [
-    'cloudformation',
-    'deploy',
-    '--stack-name',
-    stack,
-    '--template-file',
-    templateFile,
-    '--capabilities',
-    'CAPABILITY_IAM',
-    '--no-fail-on-empty-changeset',
-    '--tags',
-    'project=pnu-web',
-    '--parameter-overrides',
-    `CodeBucket=${bucket}`,
-    `CodeKey=${key}`,
-    `CertificateArn=${certArn}`,
-    `BudgetEmail=${email}`,
-  ],
-  { inherit: true },
-);
+const deployArgs = [
+  'cloudformation',
+  'deploy',
+  '--stack-name',
+  stack,
+  '--template-file',
+  template.file,
+  '--capabilities',
+  'CAPABILITY_IAM',
+  '--no-fail-on-empty-changeset',
+  '--tags',
+  'project=pnu-web',
+  '--parameter-overrides',
+  `CodeBucket=${bucket}`,
+  `CodeKey=${key}`,
+  `CertificateArn=${certArn}`,
+  `BudgetEmail=${email}`,
+];
+
+if (args.includes('--preview')) {
+  // 적용하지 않고 변경 목록만 만든다(사용자에게 보여 주고 확인받기 위해)
+  const out = run([...deployArgs, '--no-execute-changeset']);
+  const arn = out.match(/arn:aws:cloudformation:[^\s]+:changeSet\/[^\s]+/)?.[0];
+  if (!arn) {
+    console.log(out.trim() || '바뀌는 것이 없습니다');
+    process.exit(0);
+  }
+  const cs = JSON.parse(run(['cloudformation', 'describe-change-set', '--change-set-name', arn, '--output', 'json']));
+  console.log('\n변경 목록 (적용 안 함):');
+  for (const c of cs.Changes ?? []) {
+    const r = c.ResourceChange;
+    const props = (r.Details ?? []).map((d) => d.Target?.Name).filter(Boolean);
+    const extra = r.Replacement === 'True' ? ' [교체]' : '';
+    console.log(`  ${r.Action.padEnd(7)} ${r.ResourceType.padEnd(36)} ${r.LogicalResourceId}${extra}`);
+    if (props.length) console.log(`          바뀌는 속성: ${[...new Set(props)].join(', ')}`);
+  }
+  run(['cloudformation', 'delete-change-set', '--change-set-name', arn]);
+  process.exit(0);
+}
+
+console.log('CloudFormation 배포… (CloudFront를 만들거나 바꿀 때는 수 분 걸립니다)');
+run(deployArgs, { inherit: true });
 
 const outputs = JSON.parse(
   run(['cloudformation', 'describe-stacks', '--stack-name', stack, '--query', 'Stacks[0].Outputs', '--output', 'json']),

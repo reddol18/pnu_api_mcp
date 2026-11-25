@@ -16,5 +16,17 @@
   "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 120 },
   "linter": { "enabled": true, "rules": { "preset": "recommended" } },
   "javascript": { "formatter": { "quoteStyle": "single" } },
-  "assist": { "enabled": true, "actions": { "source": { "organizeImports": "on" } } }
+  "assist": { "enabled": true, "actions": { "source": { "organizeImports": "on" } } },
+  "overrides": [
+    {
+      "includes": ["apps/web/cloudfront/**"],
+      "linter": {
+        "rules": {
+          "style": { "useExponentiationOperator": "off", "useTemplate": "off" },
+          "suspicious": { "noVar": "off" },
+          "correctness": { "noUnusedVariables": "off" }
+        }
+      }
+    }
+  ]
 }

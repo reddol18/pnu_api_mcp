@@ -15,7 +15,7 @@ interface ApiBody {
 
 const EXAMPLES = ['남산공원길 105', '서울특별시 중구 태평로1가 31', '세종대로 110', '낭성면 행정복지센터'];
 
-export function SearchApp({ tileKey }: { tileKey: string }) {
+export function SearchApp({ basemap }: { basemap: boolean }) {
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
   const [body, setBody] = useState<ApiBody | null>(null);
@@ -90,7 +90,7 @@ export function SearchApp({ tileKey }: { tileKey: string }) {
 
       {error && <p className="alert">{error}</p>}
       {body && (
-        <Result body={body} onPick={(s) => void run(s)} onRetry={() => void run(q)} busy={busy} tileKey={tileKey} />
+        <Result body={body} onPick={(s) => void run(s)} onRetry={() => void run(q)} busy={busy} basemap={basemap} />
       )}
 
       <footer>
@@ -107,13 +107,13 @@ function Result({
   onPick,
   onRetry,
   busy,
-  tileKey,
+  basemap,
 }: {
   body: ApiBody;
   onPick: (s: string) => void;
   onRetry: () => void;
   busy: boolean;
-  tileKey: string;
+  basemap: boolean;
 }) {
   const r = body.result;
   if (r.status === 'not_found') return <p className="alert">{r.message}</p>;
@@ -172,7 +172,7 @@ function Result({
 
       <div className="layout">
         <div className="map-wrap">
-          {body.map && <MapView features={body.map} tileKey={tileKey} />}
+          {body.map && <MapView features={body.map} basemap={basemap} />}
           <Legend />
         </div>
         <div className="panels">

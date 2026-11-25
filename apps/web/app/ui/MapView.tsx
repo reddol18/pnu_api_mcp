@@ -14,12 +14,13 @@ import { useEffect, useRef } from 'react';
 
 /**
  * 필지·건물 외곽선을 겹쳐 그린다.
- * 배경지도는 브이월드 WMTS(Base)를 쓰되, 배경지도 전용 키(NEXT_PUBLIC_VWORLD_TILE_KEY)가 있을 때만 켠다.
- * 데이터 조회 키는 서버에만 있다 — 브라우저 타일 키는 노출되는 것을 전제로 따로 발급한다(설계 §4-3).
- * 타일 주소: https://api.vworld.kr/req/wmts/1.0.0/{key}/Base/{z}/{y}/{x}.png (Base 레벨 6~19, 명세로 확인)
+ * 배경지도는 브이월드 WMTS(Base, 레벨 6~19)를 같은 사이트의 /tiles/{z}/{y}/{x}.png로 받는다. 브라우저는 키를 모른다.
+ * - 배포: CloudFront가 /tiles/*를 브이월드에서 직접 받아 캐시한다(키는 CloudFront 원본 경로, cloudfront/tiles.js가 검사).
+ * - 로컬 next dev: next.config의 개발용 rewrites가 서버에서 대신 받는다.
+ * 설계 §4-3 「배경지도」.
  */
-function styleOf(tileKey: string): StyleSpecification {
-  if (!tileKey) {
+function styleOf(basemap: boolean): StyleSpecification {
+  if (!basemap) {
     return {
       version: 8,
       sources: {},
@@ -31,7 +32,8 @@ function styleOf(tileKey: string): StyleSpecification {
     sources: {
       vworld: {
         type: 'raster',
-        tiles: [`https://api.vworld.kr/req/wmts/1.0.0/${tileKey}/Base/{z}/{y}/{x}.png`],
+        // MapLibre는 타일 주소에 절대 URL이 필요하다
+        tiles: [`${window.location.origin}/tiles/{z}/{y}/{x}.png`],
         tileSize: 256,
         minzoom: 6,
         maxzoom: 19,
@@ -69,12 +71,12 @@ function bounds(fc: MapFeatures): [[number, number], [number, number]] | null {
     : null;
 }
 
-export function MapView({ features, tileKey }: { features: MapFeatures; tileKey: string }) {
+export function MapView({ features, basemap }: { features: MapFeatures; basemap: boolean }) {
   const el = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!el.current) return;
-    const map = new MlMap({ container: el.current, style: styleOf(tileKey), maxZoom: 20 });
+    const map = new MlMap({ container: el.current, style: styleOf(basemap), maxZoom: 20 });
     map.addControl(new NavigationControl({ showCompass: false }), 'top-right');
     map.addControl(new ScaleControl({ unit: 'metric' }), 'bottom-left');
 
@@ -152,7 +154,7 @@ export function MapView({ features, tileKey }: { features: MapFeatures; tileKey:
       });
     }
     return () => map.remove();
-  }, [features, tileKey]);
+  }, [features, basemap]);
 
   return <div ref={el} className="map" />;
 }
