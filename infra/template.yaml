@@ -47,6 +47,31 @@ Parameters:
     Description: >-
       5분 동안 Lambda 사용량(GB-초)이 이 값을 넘으면 차단 스위치가 동시 실행을 0으로 내린다(이슈 #5).
       1024MB면 평균 동시 실행 약 33을 5분 이어 간 양. 평소 30rps 급증(약 7,800)은 넘지 않는다.
+  # 의심 접속 자동 차단(이슈 #8). 기준값은 기본값 없이 배포 때만 준다(공개 저장소에 적지 않는다).
+  # cloudformation deploy는 주지 않으면 스택의 기존 값을 쓴다 → 처음 한 번만 --param으로 준다.
+  GuardMaxRequests:
+    Type: Number
+    MinValue: 1
+    Description: GuardWindowMinutes 동안 IP 하나의 Lambda 요청이 이 수 이상이면 차단
+  GuardMaxErrors:
+    Type: Number
+    MinValue: 1
+    Description: GuardWindowMinutes 동안 IP 하나가 받은 4xx·5xx가 이 수 이상이면 차단
+  GuardWindowMinutes:
+    Type: Number
+    Default: 15
+    MinValue: 10
+    Description: 몇 분 동안의 요청 로그를 볼지(갱신은 10분마다라 10 이상)
+  GuardBlockHours:
+    Type: Number
+    Default: 24
+    MinValue: 1
+    Description: 차단 시간. 지나면 저절로 풀린다
+  GuardDryRun:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: true면 막지 않고 무엇을 막을지 로그만 남긴다(처음 며칠)
 
 Resources:
   LogGroup:
@@ -205,6 +230,20 @@ Resources:
       # deploy.mjs가 apps/web/cloudfront/tiles.js 내용으로 바꿔 넣는다(코드 원본은 한 곳에만 둔다)
       FunctionCode: __TILES_FUNCTION_CODE__
 
+  # 기본 동작(페이지·API) 앞 문지기(이슈 #8): 없는 경로·메서드는 가장자리에서 거절, 자동 차단 IP는 403.
+  # 차단 목록(BLOCKED 줄)은 pnu-web-guard Lambda가 바꿔 게시한다. guard.js를 고쳐 다시 배포하면 목록이 비고
+  # 다음 갱신(10분 안)에서 다시 채워진다.
+  GuardFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: pnu-web-guard
+      AutoPublish: true
+      FunctionConfig:
+        Comment: 페이지·API 문지기 (경로·메서드 허용 목록, 자동 차단 IP)
+        Runtime: cloudfront-js-2.0
+      # deploy.mjs가 apps/web/cloudfront/guard.js 내용으로 바꿔 넣는다
+      FunctionCode: __GUARD_FUNCTION_CODE__
+
   TilesCachePolicy:
     Type: AWS::CloudFront::CachePolicy
     Properties:
@@ -282,6 +321,9 @@ Resources:
           # 페이지·API는 캐시하지 않는다(앱 안에서 결과 캐시). 헤더는 Host만 빼고 넘긴다(X-Forwarded-For → IP별 요청 제한)
           CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad # Managed-CachingDisabled
           OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac # Managed-AllViewerExceptHostHeader
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt GuardFunction.FunctionARN
         CacheBehaviors:
           # 빌드마다 이름이 바뀌는 정적 파일은 길게 캐시
           - PathPattern: /_next/static/*
@@ -444,6 +486,92 @@ Resources:
       EvaluationPeriods: 1
       TreatMissingData: notBreaching
       AlarmActions: [!Ref AlarmTopic]
+
+  # ── 의심 접속 자동 차단 갱신(이슈 #8) ─────────────────────────────────────
+  # 10분마다 요청 로그를 Logs Insights로 보고, 기준을 넘은 IP를 문지기 함수의 차단 목록에 넣어 다시 게시한다.
+  # 비용: Lambda 월 약 4,300회(무료 한도 안), Logs Insights는 매번 수십 KB만 읽는다($0.0076/GB), EventBridge 일정 규칙 무료.
+  GuardLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/pnu-web-guard
+      RetentionInDays: 30
+
+  GuardRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: read-access-log-update-guard
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: logs:StartQuery
+                Resource: !GetAtt LogGroup.Arn
+              - Effect: Allow
+                Action: logs:GetQueryResults
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - cloudfront:DescribeFunction
+                  - cloudfront:GetFunction
+                  - cloudfront:UpdateFunction
+                  - cloudfront:PublishFunction
+                Resource: !GetAtt GuardFunction.FunctionARN
+
+  GuardUpdaterFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: GuardLogGroup
+    Properties:
+      FunctionName: pnu-web-guard
+      Description: 요청 로그에서 기준을 넘은 IP를 찾아 CloudFront 문지기 함수의 차단 목록을 갱신한다
+      Runtime: nodejs22.x
+      Architectures: [x86_64]
+      Handler: index.handler
+      MemorySize: 128
+      Timeout: 60
+      ReservedConcurrentExecutions: 1
+      Role: !GetAtt GuardRole.Arn
+      LoggingConfig:
+        LogGroup: !Ref GuardLogGroup
+      Environment:
+        Variables:
+          LOG_GROUP: !Ref LogGroup
+          GUARD_FUNCTION: pnu-web-guard
+          MAX_REQUESTS: !Ref GuardMaxRequests
+          MAX_ERRORS: !Ref GuardMaxErrors
+          WINDOW_MINUTES: !Ref GuardWindowMinutes
+          BLOCK_HOURS: !Ref GuardBlockHours
+          DRY_RUN: !Ref GuardDryRun
+          MAX_ENTRIES: "120"
+      Code:
+        # deploy.mjs가 apps/web/cloudfront/guard-updater.cjs 내용으로 바꿔 넣는다
+        ZipFile: __GUARD_UPDATER_CODE__
+
+  GuardSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: pnu-web-guard-every-10min
+      ScheduleExpression: rate(10 minutes)
+      State: ENABLED
+      Targets:
+        - Id: guard
+          Arn: !GetAtt GuardUpdaterFunction.Arn
+
+  AllowEventsInvokeGuard:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref GuardUpdaterFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt GuardSchedule.Arn
 
 Outputs:
   DistributionDomain:

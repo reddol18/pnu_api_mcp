@@ -41,6 +41,14 @@ infra           AWS 배포: template.yaml(CloudFormation), deploy.mjs, run.sh. z
 - 시간대별: `filter log="access" | stats count(*) as n by bin(1h)`
 - IP·UA는 개인정보로 다룬다. 저장소·이슈에 그대로 옮기지 않는다.
 
+## 의심 접속 차단 (이슈 #8)
+
+- **문지기 CloudFront Function `pnu-web-guard`**(`apps/web/cloudfront/guard.js`)가 기본 동작(페이지·API) 앞에서 `/`·`/api/analyze`와 GET·HEAD만 통과시키고 나머지는 Lambda 호출 없이 404·405로 끝낸다. **페이지·API 경로를 새로 만들면 `ALLOWED`에 넣는다.**
+- **차단 갱신 Lambda `pnu-web-guard`**(`apps/web/cloudfront/guard-updater.cjs`, 10분마다)가 요청 로그에서 기준을 넘은 IP를 문지기 함수의 `BLOCKED` 줄에 넣어 다시 게시한다(403, `GuardBlockHours` 뒤 자동 해제). 결과는 `/aws/lambda/pnu-web-guard` 로그의 `{"guard":"checked|dry-run|published",...}`.
+- 기준값(`GuardMaxRequests`·`GuardMaxErrors`)은 저장소에 적지 않고 배포 때 `--param`으로만 준다(스택에 남는다). 처음엔 `GuardDryRun=true`(기록만), 걸리는 것을 보고 `--param GuardDryRun=false`.
+- **잘못 막혔을 때:** `aws cloudfront get-function --name pnu-web-guard --stage DEVELOPMENT <파일>`로 받아 `var BLOCKED = {...};` 줄에서 그 IP를 빼고, `describe-function`의 ETag로 `update-function --if-match <ETag> --function-config Comment=…,Runtime=cloudfront-js-2.0 --function-code fileb://<파일>` → 새 ETag로 `publish-function`. 기준값이 너무 낮으면 다음 갱신에 다시 걸리니 `--param`으로 기준값부터 올린다.
+- guard.js를 고쳐 배포하면 차단 목록이 비고 다음 갱신에서 다시 채워진다.
+
 ## 하네스
 
 - 패키지 매니저 pnpm(workspace), 태스크 러너 Turborepo, 린트·포맷 Biome, 테스트 Vitest, TypeScript strict.

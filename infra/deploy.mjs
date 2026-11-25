@@ -30,7 +30,17 @@ const flag = (name) => {
 const planOnly = args.includes('--plan');
 // --param Key=Value (여러 번): 템플릿 파라미터 바꾸기. 예: --param MemorySize=512 --param ReservedConcurrency=100
 // 주지 않은 파라미터는 cloudformation deploy가 스택의 기존 값을 쓴다
-const ALLOWED_PARAMS = new Set(['MemorySize', 'ReservedConcurrency', 'KillSwitchGbSeconds']);
+// Guard*: 의심 접속 자동 차단(이슈 #8). 기준값(GuardMaxRequests·GuardMaxErrors)은 처음 한 번만 주면 스택에 남는다
+const ALLOWED_PARAMS = new Set([
+  'MemorySize',
+  'ReservedConcurrency',
+  'KillSwitchGbSeconds',
+  'GuardMaxRequests',
+  'GuardMaxErrors',
+  'GuardWindowMinutes',
+  'GuardBlockHours',
+  'GuardDryRun',
+]);
 const extraParams = args.flatMap((a, i) => (a === '--param' && args[i + 1] ? [args[i + 1]] : []));
 for (const p of extraParams) {
   const name = p.split('=')[0] ?? '';
@@ -45,32 +55,42 @@ const aws = process.env.AWS_CLI || 'aws';
 const region = process.env.AWS_REGION || 'ap-northeast-2';
 const stack = 'pnu-web';
 const templateSource = path.join(import.meta.dirname, 'template.yaml');
-const tilesFunctionFile = path.join(import.meta.dirname, '../apps/web/cloudfront/tiles.js');
+const cloudfrontDir = path.join(import.meta.dirname, '../apps/web/cloudfront');
+// 템플릿 자리표시 → 코드 원본(원본은 apps/web/cloudfront 한 곳에만 둔다, 테스트도 이 파일을 읽는다)
+const INLINE_CODE = {
+  __TILES_FUNCTION_CODE__: { file: 'tiles.js', limit: 10240, label: 'CloudFront Function(타일)' },
+  __GUARD_FUNCTION_CODE__: { file: 'guard.js', limit: 10240, label: 'CloudFront Function(문지기)' },
+  __GUARD_UPDATER_CODE__: { file: 'guard-updater.cjs', limit: 4096, label: '차단 갱신 Lambda(인라인)' },
+};
 
 /**
- * 템플릿 사본에 CloudFront Function 코드를 끼워 넣는다(코드 원본은 apps/web/cloudfront/tiles.js 한 곳).
- * 주석 줄은 뺀다(함수 크기 제한·가독성). YAML 블록 문자열로 넣는다.
+ * 템플릿 사본에 코드를 끼워 넣는다. 주석만 있는 줄은 뺀다(크기 제한·가독성). YAML 블록 문자열로 넣는다.
  */
 function buildTemplate() {
-  const code = readFileSync(tilesFunctionFile, 'utf8')
-    .split(/\r?\n/)
-    .filter((l) => !/^\s*\/\//.test(l))
-    .join('\n')
-    .trim();
-  const yaml = readFileSync(templateSource, 'utf8');
-  const marker = /^(\s*)FunctionCode: __TILES_FUNCTION_CODE__\s*$/m;
-  const m = yaml.match(marker);
-  if (!m) throw new Error('템플릿에 __TILES_FUNCTION_CODE__ 자리가 없습니다');
-  const indent = `${m[1]}  `;
-  const block = `${m[1]}FunctionCode: |\n${code
-    .split('\n')
-    .map((l) => (l ? indent + l : ''))
-    .join('\n')}`;
+  let yaml = readFileSync(templateSource, 'utf8');
+  for (const [name, { file, limit, label }] of Object.entries(INLINE_CODE)) {
+    const code = readFileSync(path.join(cloudfrontDir, file), 'utf8')
+      .split(/\r?\n/)
+      .filter((l) => !/^\s*\/\//.test(l))
+      .join('\n')
+      .trim();
+    const marker = new RegExp(`^(\\s*)(FunctionCode|ZipFile): ${name}\\s*$`, 'm');
+    const m = yaml.match(marker);
+    if (!m) throw new Error(`템플릿에 ${name} 자리가 없습니다`);
+    const size = Buffer.byteLength(code);
+    if (size > limit) throw new Error(`${label} 코드가 ${size} bytes로 상한 ${limit}을 넘습니다`);
+    const indent = `${m[1]}  `;
+    const block = `${m[1]}${m[2]}: |\n${code
+      .split('\n')
+      .map((l) => (l ? indent + l : ''))
+      .join('\n')}`;
+    yaml = yaml.replace(marker, () => block);
+    console.log(`${label} 코드 ${size} bytes`);
+  }
   const dir = mkdtempSync(path.join(os.tmpdir(), 'pnu-web-cfn-'));
-  const file = path.join(dir, 'template.yaml');
-  writeFileSync(file, yaml.replace(marker, block));
-  console.log(`CloudFront Function 코드 ${Buffer.byteLength(code)} bytes`);
-  return { file, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
+  const outFile = path.join(dir, 'template.yaml');
+  writeFileSync(outFile, yaml);
+  return { file: outFile, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
 }
 
 if (!zip) {
