@@ -155,6 +155,44 @@ Resources:
         SigningBehavior: always
         SigningProtocol: sigv4
 
+  # ── 안내 페이지(이슈 #5) ──────────────────────────────────────────────────
+  # Lambda가 거절(429: 동시 실행 상한·차단 스위치)하거나 5xx면 CloudFront가 이 버킷으로 넘긴다(오리진 장애 조치).
+  # 버킷에는 maintenance.html 하나뿐이라 요청 경로는 403이 되고, 사용자 지정 오류 응답이 403을 안내 페이지(503)로 바꾼다.
+  # (사용자 지정 오류 응답은 429를 지원하지 않고, 오리진 장애 조치는 429를 지원한다 — CloudFront 개발자 가이드)
+  MaintenanceBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub pnu-web-maintenance-${AWS::AccountId}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+
+  MaintenanceBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref MaintenanceBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: cloudfront.amazonaws.com }
+            Action: s3:GetObject
+            Resource: !Sub ${MaintenanceBucket.Arn}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}
+
+  MaintenanceOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: pnu-web-maintenance
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
   # 배경지도 타일: Lambda를 거치지 않고 CloudFront가 브이월드에서 직접 받아 캐시한다(설계 §4-3 「배경지도」)
   TilesFunction:
     Type: AWS::CloudFront::Function
@@ -211,8 +249,32 @@ Resources:
             CustomOriginConfig:
               OriginProtocolPolicy: https-only
               OriginSSLProtocols: [TLSv1.2]
+          - Id: maintenance
+            DomainName: !GetAtt MaintenanceBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt MaintenanceOriginAccessControl.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        OriginGroups:
+          Quantity: 1
+          Items:
+            - Id: lambda-or-maintenance
+              FailoverCriteria:
+                StatusCodes:
+                  Quantity: 4
+                  Items: [429, 502, 503, 504]
+              Members:
+                Quantity: 2
+                Items:
+                  - OriginId: lambda
+                  - OriginId: maintenance
+        CustomErrorResponses:
+          # 안내 버킷에 없는 경로(403) → 안내 페이지, 상태 503. 앱 자체는 403을 내지 않는다
+          - ErrorCode: 403
+            ResponseCode: 503
+            ResponsePagePath: /maintenance.html
+            ErrorCachingMinTTL: 5
         DefaultCacheBehavior:
-          TargetOriginId: lambda
+          TargetOriginId: lambda-or-maintenance
           ViewerProtocolPolicy: redirect-to-https
           AllowedMethods: [GET, HEAD, OPTIONS]
           CachedMethods: [GET, HEAD]
@@ -224,6 +286,13 @@ Resources:
           # 빌드마다 이름이 바뀌는 정적 파일은 길게 캐시
           - PathPattern: /_next/static/*
             TargetOriginId: lambda
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # Managed-CachingOptimized
+          - PathPattern: /maintenance.html
+            TargetOriginId: maintenance
             ViewerProtocolPolicy: redirect-to-https
             AllowedMethods: [GET, HEAD]
             CachedMethods: [GET, HEAD]
@@ -384,3 +453,6 @@ Outputs:
     Value: !Ref Distribution
   FunctionName:
     Value: !Ref Function
+  MaintenanceBucket:
+    Description: deploy.mjs가 infra/maintenance.html을 올리는 버킷
+    Value: !Ref MaintenanceBucket

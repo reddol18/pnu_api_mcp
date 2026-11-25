@@ -207,3 +207,20 @@ const outputs = JSON.parse(
   run(['cloudformation', 'describe-stacks', '--stack-name', stack, '--query', 'Stacks[0].Outputs', '--output', 'json']),
 );
 for (const o of outputs) console.log(`${o.OutputKey}: ${o.OutputValue}`);
+
+// 안내 페이지(이슈 #5): Lambda가 거절할 때 CloudFront가 이 파일을 보여 준다
+const maintenanceBucket = outputs.find((o) => o.OutputKey === 'MaintenanceBucket')?.OutputValue;
+if (maintenanceBucket) {
+  run([
+    's3',
+    'cp',
+    path.join(import.meta.dirname, 'maintenance.html'),
+    `s3://${maintenanceBucket}/maintenance.html`,
+    '--content-type',
+    'text/html; charset=utf-8',
+    '--cache-control',
+    'max-age=300',
+    '--only-show-errors',
+  ]);
+  console.log(`안내 페이지 올림: s3://${maintenanceBucket}/maintenance.html`);
+}

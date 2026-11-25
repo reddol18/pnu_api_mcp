@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>잠시 쉬는 중 · 필지-건물 관계 조회</title>
+<!-- 웹 함수(Lambda)가 요청을 받지 못할 때 CloudFront가 S3에서 대신 보여 주는 안내(이슈 #5). 외부 파일 없이 이 파일 하나로 끝난다 -->
+<style>
+  :root { color-scheme: light dark; --fg: #1f2328; --muted: #59636e; --bg: #f6f8fa; --card: #ffffff; --line: #d1d9e0; }
+  @media (prefers-color-scheme: dark) { :root { --fg: #e6edf3; --muted: #9198a1; --bg: #0d1117; --card: #151b23; --line: #3d444d; } }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--fg);
+         font: 16px/1.6 system-ui, -apple-system, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; }
+  main { max-width: 34rem; margin: 1.5rem; padding: 2rem; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+  h1 { font-size: 1.35rem; margin: 0 0 .75rem; }
+  p { margin: .5rem 0; }
+  .muted { color: var(--muted); font-size: .9rem; }
+  a.button { display: inline-block; margin-top: 1rem; padding: .5rem 1rem; border: 1px solid var(--line); border-radius: 8px;
+             color: inherit; text-decoration: none; }
+  a.button:hover { background: var(--bg); }
+</style>
+</head>
+<body>
+<main>
+  <h1>지금은 잠시 요청을 받지 못하고 있습니다</h1>
+  <p>요청이 한꺼번에 몰렸거나, 사용량이 정해 둔 한도를 넘어 서비스를 잠시 멈췄습니다.</p>
+  <p>잠시 후 다시 시도해 주세요.</p>
+  <a class="button" href="/">다시 시도</a>
+  <p class="muted">필지-건물 관계 조회 (pnu.reddol18.pe.kr)</p>
+</main>
+</body>
+</html>
