@@ -62,7 +62,7 @@ describe('필지에서 출발', () => {
     ]);
   });
 
-  it('정원팰리스 126-52: 대장 3동 N:1, 공간은 옆 건물이 3.5% 걸쳐 4동 N:M', async () => {
+  it('정원팰리스 126-52: 대장 3동 N:1, 공간은 옆 건물이 3.5% 걸쳐 4동 N:M + 작은 겹침 안내', async () => {
     const a = parcelOf((await run(PNU.jungwon)).r);
     expect(a.ledger).toMatchObject({ relation: 'N:1', parcels: [PNU.jungwon] });
     expect(a.ledger.buildings.map((b) => b.dongName).sort()).toEqual(['101동', '102동', '103동']);
@@ -71,13 +71,19 @@ describe('필지에서 출발', () => {
     expect(codes(a)).toEqual([
       ['spatial_parcel_not_ledger', '1126010200101260050'],
       ['building_count_differs', PNU.jungwon],
+      ['small_overlap', PNU.jungwon],
     ]);
+    const small = a.discrepancies.find((d) => d.code === 'small_overlap');
+    expect(small?.buildingId).toBe('1126010200101260050016068');
+    expect(small?.message).toContain('3.5%');
+    expect(small?.message).toContain('3.4㎡');
   });
 
-  it('옆 건물의 겹침 비율(3.5%)이 결과에 그대로 나온다 (경계 접촉 기준값 판단용)', async () => {
-    const a = parcelOf((await run(PNU.jungwon)).r);
-    const neighbor = a.spatial.edges.find((e) => e.pnu === PNU.jungwon && (e.ratioOfBuilding ?? 1) < 0.05);
-    expect(neighbor?.ratioOfBuilding).toBeCloseTo(0.0354, 3);
+  it('작은 겹침이라도 대장 부속지번이 같은 필지를 가리키면 안내하지 않는다 (낭성면 → 262-3, 4.3%)', async () => {
+    const a = parcelOf((await run(PNU.nangseong)).r);
+    const toSmall = a.spatial.edges.find((e) => e.pnu === '4311131025102620003');
+    expect(toSmall?.ratioOfBuilding).toBeCloseTo(0.0434, 3);
+    expect(a.discrepancies.filter((d) => d.code === 'small_overlap')).toEqual([]);
   });
 
   it('블로그 예시 상봉동 126-39 (PNU): 연속지적도에도 없고 대장도 없다', async () => {
@@ -145,22 +151,59 @@ describe('입력 처리', () => {
     if (r.status === 'ambiguous') expect(r.candidates).toHaveLength(2);
   });
 
-  it('지번 주소로 건물을 못 찾으면 PNU로 물어보라고 안내한다', async () => {
+  it('juso에 건물이 없는 지번: 법정동 이름이 여럿이면(상봉동: 서울 중랑구·경남 진주시) 필지 후보를 준다', async () => {
     const { r } = await run('상봉동 126-39');
-    expect(r).toMatchObject({ status: 'not_found', inputKind: 'jibun' });
-    if (r.status === 'not_found') expect(r.message).toContain('PNU');
+    expect(r).toMatchObject({ status: 'ambiguous', inputKind: 'jibun' });
+    if (r.status === 'ambiguous') {
+      expect(r.parcels.map((p) => p.pnu)).toContain(PNU.sangbong12639);
+      expect(r.parcels.map((p) => p.jibunAddress)).toContain('서울특별시 중랑구 상봉동 126-39');
+    }
   });
 
-  it('키가 없으면 소스별 error로 나오고 전체는 실패하지 않는다', async () => {
+  it('시군구까지 주면 법정동코드 표로 PNU를 만들어 바로 조회한다 (juso가 실패해도)', async () => {
+    // 가짜 juso에는 이 검색어 fixture가 없어 호출이 실패한다 → 법정동코드 표로 넘어간다
+    const a = parcelOf((await run('중랑구 상봉동 126-39')).r);
+    expect(a.pnu).toBe(PNU.sangbong12639);
+    expect(a.notes[0]).toContain('법정동코드 표');
+    expect(codes(a)).toEqual([['parcel_not_in_cadastral', PNU.sangbong12639]]);
+  });
+
+  it('키가 없으면 소스별 error로 나오고, 다시 물어도 소용없다(설정 문제)고 안내한다', async () => {
     const { r } = await run(PNU.cityhall, { dataGoKrKey: '' });
     const a = parcelOf(r);
     expect(a.ledger).toMatchObject({ status: 'error', error: { code: 'NO_KEY' } });
     expect(a.spatial.status).toBe('ok');
     expect(a.agree).toBeNull();
+    expect(a.incomplete?.retryable).toBe(false);
+    expect(a.incomplete?.failed.map((f) => [f.source, f.kind])).toEqual([
+      ['대장 표제부', 'config'],
+      ['대장 총괄표제부', 'config'],
+      ['대장 부속지번', 'config'],
+    ]);
+    expect(a.incomplete?.message).toContain('.env');
   });
 
-  it('juso 키가 없으면 주소 입력은 error', async () => {
+  it('공공 API가 응답하지 않으면 잠시 후 다시 물어보라고 안내한다', async () => {
+    const apis = fakeApis();
+    const flaky = (async (input: string | URL, init?: RequestInit) => {
+      if (String(input).includes('apis.data.go.kr')) throw new DOMException('timeout', 'TimeoutError');
+      return apis.fetch(input, init);
+    }) as typeof fetch;
+    const r = await analyze(PNU.cityhall, { ...KEYS, fetch: flaky, sleep: async () => {} });
+    const a = parcelOf(r);
+    expect(a.ledger.status).toBe('error');
+    expect(a.spatial.status).toBe('ok'); // 공간 결과는 그대로 보여 준다
+    expect(a.incomplete).toMatchObject({ retryable: true });
+    expect(a.incomplete?.message).toContain('다시');
+  });
+
+  it('모두 받았으면 incomplete는 null', async () => {
+    expect(parcelOf((await run(PNU.cityhall)).r).incomplete).toBeNull();
+  });
+
+  it('juso 키가 없으면 주소 입력은 error + 설정 안내 (재시도 불가)', async () => {
     const { r } = await run('세종대로 110', { jusoKey: '' });
-    expect(r).toMatchObject({ status: 'error', error: { code: 'NO_KEY' } });
+    expect(r).toMatchObject({ status: 'error', error: { code: 'NO_KEY' }, retryable: false });
+    if (r.status === 'error') expect(r.message).toContain('.env');
   });
 });

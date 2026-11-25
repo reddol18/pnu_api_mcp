@@ -22,6 +22,7 @@ export {
   analyzeParcel,
   type BuildingAnalysis,
   type ParcelAnalysis,
+  type ParcelChoice,
   type RelationResult,
 } from './analyze.js';
 export {
@@ -29,6 +30,7 @@ export {
   type BjdongTable,
   type DecodedPnu,
   decodePnu,
+  findBjdongByName,
   loadBjdongTable,
   parseBjdongTsv,
 } from './bjdong.js';
@@ -84,10 +86,20 @@ export {
   type ParcelStartContext,
   type RelationKind,
   type RelationView,
+  SMALL_OVERLAP_RATIO,
   spatialViewFromBuilding,
   spatialViewFromParcel,
 } from './relation.js';
-export { type CodedError, type SourceResult, settle } from './source.js';
+export {
+  type CodedError,
+  describeIncomplete,
+  type FailedSource,
+  type FailureKind,
+  failureKind,
+  type Incomplete,
+  type SourceResult,
+  settle,
+} from './source.js';
 export {
   type AreaGeometry,
   areaM2,

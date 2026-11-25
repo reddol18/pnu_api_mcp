@@ -14,6 +14,7 @@ export interface BjdongTable {
   source: string;
   get(code: string): BjdongEntry | undefined;
   size: number;
+  entries(): Iterable<BjdongEntry>;
 }
 
 const DEFAULT_PATH = fileURLToPath(new URL('../data/bjdong_codes.tsv', import.meta.url));
@@ -31,7 +32,24 @@ export function parseBjdongTsv(text: string): BjdongTable {
     if (!code || !name || !/^\d{10}$/.test(code)) continue;
     map.set(code, { code, name, active: active === '1' });
   }
-  return { source, get: (c) => map.get(c), size: map.size };
+  return { source, get: (c) => map.get(c), size: map.size, entries: () => map.values() };
+}
+
+/**
+ * 주소 앞부분(시도·시군구·읍면동·리 이름)으로 현행 법정동을 찾는다. 외부 호출 없음.
+ * "상봉동", "중랑구 상봉동", "서울특별시 중랑구 상봉동", "낭성면 이목리" 모두 받는다.
+ * 이름 끝이 낱말 단위로 맞는 현행(폐지 아님) 법정동 중 읍면동·리 단위만 돌려준다.
+ */
+export function findBjdongByName(head: string, table: BjdongTable = loadBjdongTable()): BjdongEntry[] {
+  const q = head.trim().replace(/\s+/g, ' ');
+  if (!q) return [];
+  const out: BjdongEntry[] = [];
+  for (const e of table.entries()) {
+    if (!e.active || e.code.slice(5, 8) === '000') continue; // 시도·시군구 단위에는 지번이 붙지 않는다
+    if (e.code.slice(8) === '00' && /[읍면]$/u.test(e.name)) continue; // 읍·면의 지번은 리에 붙는다
+    if (e.name === q || e.name.endsWith(` ${q}`)) out.push(e);
+  }
+  return out;
 }
 
 let cached: BjdongTable | undefined;

@@ -33,7 +33,16 @@ export interface GraphEdge {
   via: 'representative' | 'attached' | 'overlap';
   /** overlap일 때 겹친 면적 / 건물 면적 */
   ratioOfBuilding?: number;
+  /** overlap일 때 겹친 면적(㎡) */
+  overlapAreaM2?: number;
 }
+
+/**
+ * 이 비율 미만의 겹침은 관계에는 넣되 "실제 걸침인지 측량 오차인지 확실하지 않다"고 안내한다.
+ * 근거: 대장으로 확인된 실제 걸침 중 최소 4.3%(낭성면 → 262-3), 대장 근거 없는 겹침 3.5%(상봉동 126-50 건물 → 126-52).
+ * 대장(대지위치·부속지번)이 같은 필지를 가리키면 확인된 것으로 보고 안내하지 않는다.
+ */
+export const SMALL_OVERLAP_RATIO = 0.05;
 
 export interface EdgeContact {
   buildingId: string;
@@ -61,7 +70,8 @@ export type DiscrepancyCode =
   | 'spatial_parcel_not_ledger'
   | 'building_count_differs'
   | 'representative_not_under_building'
-  | 'ledger_unmatched';
+  | 'ledger_unmatched'
+  | 'small_overlap';
 
 export interface Discrepancy {
   code: DiscrepancyCode;
@@ -239,6 +249,36 @@ export function ledgerViewFromBuilding(
   return { view: v, matched };
 }
 
+function overlapEdge(
+  buildingId: string,
+  pnu: string,
+  l: { ratioOfBuilding: number; overlapAreaM2: number },
+): GraphEdge {
+  return { buildingId, pnu, via: 'overlap', ratioOfBuilding: l.ratioOfBuilding, overlapAreaM2: l.overlapAreaM2 };
+}
+
+/**
+ * 작은 겹침(SMALL_OVERLAP_RATIO 미만) 안내. 관계 판정에는 넣었지만 실제 걸침인지 확실하지 않은 것.
+ * confirmed(건물 id, pnu)가 true면(대장이 그 필지를 가리킴) 안내하지 않는다.
+ */
+function smallOverlaps(spatial: RelationView, confirmed: (e: GraphEdge) => boolean): Discrepancy[] {
+  if (spatial.status !== 'ok') return [];
+  return spatial.edges
+    .filter((e) => (e.ratioOfBuilding ?? 1) < SMALL_OVERLAP_RATIO && !confirmed(e))
+    .map((e) => {
+      const b = spatial.buildings.find((x) => x.id === e.buildingId);
+      const label = [b?.name, b?.dongName].filter(Boolean).join(' ') || e.buildingId;
+      const pct = ((e.ratioOfBuilding ?? 0) * 100).toFixed(1);
+      const area = e.overlapAreaM2 === undefined ? '' : `, ${e.overlapAreaM2.toFixed(1)}㎡`;
+      return {
+        code: 'small_overlap' as const,
+        pnu: e.pnu,
+        buildingId: e.buildingId,
+        message: `건물 ${label}이(가) ${e.pnu}에 건물 면적의 ${pct}%${area}만 걸친다. 관계에는 넣었지만 실제로 걸친 것인지 지적도·건물 외곽선의 오차인지 이 값만으로는 가를 수 없다(대장에도 근거가 없다). 현장이나 지적측량으로 확인해야 하는 경우다.`,
+      };
+    });
+}
+
 const roadNode = (b: BuildingShape): GraphBuilding => ({
   id: b.buildingMgmtNo,
   kind: 'road-building',
@@ -263,12 +303,12 @@ export function spatialViewFromParcel(
   const edges: GraphEdge[] = [];
   for (const b of kept) {
     const id = b.building.buildingMgmtNo;
-    edges.push({ buildingId: id, pnu: s.pnu, via: 'overlap', ratioOfBuilding: b.ratioOfBuilding });
+    edges.push(overlapEdge(id, s.pnu, b));
     const others = parcelsOf.get(id);
     for (const p of others?.data ?? []) {
       if (p.parcel.pnu === s.pnu) continue;
       if (p.edgeContact) edgeContacts.push({ buildingId: id, pnu: p.parcel.pnu, ratioOfBuilding: p.ratioOfBuilding });
-      else edges.push({ buildingId: id, pnu: p.parcel.pnu, via: 'overlap', ratioOfBuilding: p.ratioOfBuilding });
+      else edges.push(overlapEdge(id, p.parcel.pnu, p));
     }
   }
   const nodes = kept.map((b) => roadNode(b.building));
@@ -284,7 +324,7 @@ export function spatialViewFromBuilding(s: SpatialBuildingParcels): RelationView
   const edgeContacts: EdgeContact[] = [];
   for (const p of s.parcels.data) {
     if (p.edgeContact) edgeContacts.push({ buildingId: id, pnu: p.parcel.pnu, ratioOfBuilding: p.ratioOfBuilding });
-    else edges.push({ buildingId: id, pnu: p.parcel.pnu, via: 'overlap', ratioOfBuilding: p.ratioOfBuilding });
+    else edges.push(overlapEdge(id, p.parcel.pnu, p));
   }
   return view(edges.length ? 'ok' : 'empty', [roadNode(s.building)], edges, { edgeContacts });
 }
@@ -350,6 +390,9 @@ export function discrepanciesFromParcel(ctx: ParcelStartContext, ledger: Relatio
       message: `건물 수가 다르다: 대장 ${ledger.buildings.length}동, 공간(도로명주소 건물) ${spatial.buildings.length}동 — 부속건축물은 도로명주소가 없어 공간에 안 잡히고, 이웃 건물이 걸치면 공간에만 잡힌다`,
     });
   }
+  // 출발 필지로 들어오는 작은 겹침은 이웃 건물이라 대장으로 확인할 수 없다. 다른 필지로 나가는 것은 대장 필지 목록에 있으면 확인된 것.
+  const lp = new Set(ledger.status === 'ok' ? ledger.parcels : []);
+  out.push(...smallOverlaps(spatial, (e) => e.pnu !== ctx.pnu && lp.has(e.pnu)));
   return out;
 }
 
@@ -388,5 +431,7 @@ export function discrepanciesFromBuilding(ctx: BuildingStartContext, ledger: Rel
     });
   }
   out.push(...parcelSetDiff(ledger, spatial));
+  const lp = new Set(ledger.status === 'ok' ? ledger.parcels : []);
+  out.push(...smallOverlaps(spatial, (e) => lp.has(e.pnu)));
   return out;
 }
