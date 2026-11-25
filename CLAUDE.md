@@ -48,6 +48,7 @@ infra           AWS 배포: template.yaml(CloudFormation), deploy.mjs, run.sh. z
 - 기준값(`GuardMaxRequests`·`GuardMaxErrors`)은 저장소에 적지 않고 배포 때 `--param`으로만 준다(스택에 남는다). 처음엔 `GuardDryRun=true`(기록만), 걸리는 것을 보고 `--param GuardDryRun=false`.
 - **잘못 막혔을 때:** `aws cloudfront get-function --name pnu-web-guard --stage DEVELOPMENT <파일>`로 받아 `var BLOCKED = {...};` 줄에서 그 IP를 빼고, `describe-function`의 ETag로 `update-function --if-match <ETag> --function-config Comment=…,Runtime=cloudfront-js-2.0 --function-code fileb://<파일>` → 새 ETag로 `publish-function`. 기준값이 너무 낮으면 다음 갱신에 다시 걸리니 `--param`으로 기준값부터 올린다.
 - guard.js를 고쳐 배포하면 차단 목록이 비고 다음 갱신에서 다시 채워진다.
+- **크롤러 정책(#10):** 주요 회사(Google·Microsoft·네이버·카카오·Apple·OpenAI·Anthropic)의 검색·AI 크롤러만 `/` 허용, 조회(`/api/`)는 어떤 크롤러도 안 된다. `/robots.txt`는 문지기가 바로 돌려준다(`CRAWLER_TOKENS`). 목록 밖 자칭 크롤러(`…bot/`, `+http://…` 꼴 User-Agent)는 403. 크롤러를 더 허용하려면 `CRAWLER_TOKENS`와 `MAJOR_CRAWLER`를 함께 고친다.
 
 ## 하네스
 

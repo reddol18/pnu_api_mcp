@@ -4,8 +4,8 @@ import { describe, expect, it } from 'vitest';
 
 // CloudFront Function 파일을 배포되는 그대로 읽어 handler를 꺼낸다(모듈 문법이 없는 런타임이라)
 const source = readFileSync(new URL('../cloudfront/guard.js', import.meta.url), 'utf8');
-type Req = { method: string; uri: string };
-type Res = { statusCode: number };
+type Req = { method: string; uri: string; headers: Record<string, { value: string }> };
+type Res = { statusCode: number; body?: { data: string } };
 const load = (code: string) =>
   new Function(`${code}; return handler;`)() as (e: { request: Req; viewer: { ip: string } }) => Req | Res;
 
@@ -22,8 +22,11 @@ const updater = createRequire(import.meta.url)('../cloudfront/guard-updater.cjs'
   offenderQuery(maxRequests: number, maxErrors: number): string;
 };
 
-const run = (method: string, uri: string, ip = '198.51.100.1', code = source) =>
-  load(code)({ request: { method, uri }, viewer: { ip } });
+const CHROME =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36';
+const run = (method: string, uri: string, ip = '198.51.100.1', code = source, ua = CHROME) =>
+  load(code)({ request: { method, uri, headers: { 'user-agent': { value: ua } } }, viewer: { ip } });
+const passed = (r: Req | Res) => 'uri' in r;
 
 describe('문지기 CloudFront Function', () => {
   it.each([
@@ -31,7 +34,7 @@ describe('문지기 CloudFront Function', () => {
     ['HEAD', '/'],
     ['GET', '/api/analyze'],
   ])('통과: %s %s', (m, uri) => {
-    expect(run(m, uri)).toEqual({ method: m, uri });
+    expect(run(m, uri)).toMatchObject({ method: m, uri });
   });
 
   it.each(['/.env', '/wp-login.php', '/.git/config', '/api/analyze/', '/admin', '/index.html', '/favicon.ico'])(
@@ -49,8 +52,51 @@ describe('문지기 CloudFront Function', () => {
     const now = Math.floor(Date.now() / 1000);
     const code = updater.writeBlocked(source, { '203.0.113.9': now + 3600, '203.0.113.10': now - 1 });
     expect(run('GET', '/', '203.0.113.9', code)).toMatchObject({ statusCode: 403 });
-    expect(run('GET', '/', '203.0.113.10', code)).toEqual({ method: 'GET', uri: '/' });
-    expect(run('GET', '/', '198.51.100.1', code)).toEqual({ method: 'GET', uri: '/' });
+    expect(passed(run('GET', '/', '203.0.113.10', code))).toBe(true);
+    expect(passed(run('GET', '/', '198.51.100.1', code))).toBe(true);
+  });
+});
+
+describe('크롤러 정책 (#10)', () => {
+  const GOOGLEBOT = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)';
+  const GPTBOT =
+    'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.4; +https://openai.com/gptbot)';
+  const YETI = 'Mozilla/5.0 (compatible; Yeti/1.1; +https://naver.me/spd)';
+  const get = (uri: string, ua: string) => run('GET', uri, '198.51.100.1', source, ua);
+
+  it('robots.txt를 바로 돌려준다: 주요 크롤러는 / 허용·/api/ 거절, 나머지는 전부 거절', () => {
+    const r = get('/robots.txt', CHROME) as Res;
+    expect(r.statusCode).toBe(200);
+    const txt = r.body?.data ?? '';
+    for (const t of ['Googlebot', 'Google-Extended', 'Applebot-Extended', 'GPTBot', 'ClaudeBot', 'Yeti', 'bingbot']) {
+      expect(txt).toContain(`User-agent: ${t}\n`);
+    }
+    expect(txt).toContain('Allow: /\nDisallow: /api/\n');
+    expect(txt.endsWith('User-agent: *\nDisallow: /\n')).toBe(true);
+  });
+
+  it.each([GOOGLEBOT, GPTBOT, YETI])('주요 크롤러는 페이지 통과, 조회는 403: %s', (ua) => {
+    expect(passed(get('/', ua))).toBe(true);
+    expect(get('/api/analyze', ua)).toMatchObject({ statusCode: 403 });
+  });
+
+  it.each([
+    'Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)',
+    'Mozilla/5.0 (compatible; SemrushBot/7~bl; +http://www.semrush.com/bot.html)',
+    'Mozilla/5.0 (Linux; Android 5.0) AppleWebKit/537.36 (KHTML, like Gecko) Mobile Safari/537.36 (compatible; Bytespider; spider-feedback@bytedance.com)',
+    'Mozilla/5.0 (compatible; Some-crawler/1.0)',
+  ])('목록 밖 자칭 크롤러는 페이지도 403: %s', (ua) => {
+    expect(get('/', ua)).toMatchObject({ statusCode: 403 });
+  });
+
+  it.each([
+    CHROME,
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+    'Mozilla/5.0 (Linux; Android 11; CUBOT_X30 Build/RP1A) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36',
+    '',
+  ])('일반 브라우저(휴대폰 제조사 CUBOT 포함)는 그대로: %s', (ua) => {
+    expect(passed(get('/', ua))).toBe(true);
+    expect(passed(get('/api/analyze', ua))).toBe(true);
   });
 });
 
