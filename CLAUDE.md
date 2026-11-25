@@ -32,6 +32,15 @@ infra           AWS 배포: template.yaml(CloudFormation), deploy.mjs, run.sh. z
 - 파라미터 바꾸기: `--param MemorySize=512`, `--param ReservedConcurrency=100`, `--param KillSwitchGbSeconds=10000`. 주지 않으면 스택의 기존 값을 쓴다.
 - **차단 스위치가 내렸을 때(메일 "pnu-web-usage-kill-switch" ALARM):** 웹 함수의 예약 동시 실행이 0이라 모든 요청이 거절된다. 원인(로그·급증)을 먼저 보고, 되살리기는 `F:\aws_cli\aws.exe lambda put-function-concurrency --function-name pnu-web --reserved-concurrent-executions 100 --region ap-northeast-2` 또는 다시 배포(템플릿 값으로 돌아간다). 경보가 아직 ALARM이면 다음 5분 지표에서 다시 내려가지 않게 원인부터 막는다.
 
+## 요청 통계 (CloudWatch Logs Insights, 로그 그룹 `/aws/lambda/pnu-web`, 7일 보관)
+
+웹 Lambda가 요청마다 `{"log":"access","m","p","s","ms","ip","ua"}` 한 줄을 남긴다(`infra/access-log.cjs`, 쿼리 문자열은 남기지 않는다). CloudFront 캐시에서 끝난 요청(정적 파일·타일)은 Lambda에 오지 않아 여기 없다.
+
+- 경로·응답 코드별: `filter log="access" | stats count(*) as n, avg(ms) as avgMs by p, s | sort n desc | limit 30`
+- IP별(스캐너 찾기): `filter log="access" | stats count(*) as n, sum(s>=400) as err by ip | sort n desc | limit 20`
+- 시간대별: `filter log="access" | stats count(*) as n by bin(1h)`
+- IP·UA는 개인정보로 다룬다. 저장소·이슈에 그대로 옮기지 않는다.
+
 ## 하네스
 
 - 패키지 매니저 pnpm(workspace), 태스크 러너 Turborepo, 린트·포맷 Biome, 테스트 Vitest, TypeScript strict.

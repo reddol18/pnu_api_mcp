@@ -53,6 +53,7 @@ jobs:
           cp -r apps/web/.next/static "$OUT/apps/web/.next/static"
           if [ -d apps/web/public ]; then cp -r apps/web/public "$OUT/apps/web/public"; fi
           cp infra/run.sh "$OUT/run.sh"
+          cp infra/access-log.cjs "$OUT/access-log.cjs"
           chmod +x "$OUT/run.sh"
 
       - name: 패키지 검사
@@ -62,6 +63,7 @@ jobs:
           test -f "$OUT/apps/web/server.js"
           test -f "$OUT/packages/core/data/bjdong_codes.tsv"
           test -x "$OUT/run.sh"
+          test -f "$OUT/access-log.cjs"
           du -sh "$OUT"
 
       - name: run.sh로 띄워서 확인 (Lambda와 같은 시작 방식, 키 없이)
@@ -79,6 +81,12 @@ jobs:
           # 정적 파일 하나가 실제로 나오는지
           CSS=$(grep -o '/_next/static/[^"]*\.css' home.html | head -1 || true)
           test -n "$CSS" && curl -sf -o /dev/null "http://127.0.0.1:8080$CSS"
+          # 요청 로그(이슈 #7): 한 줄씩 남고, 쿼리 문자열(조회 주소)은 남지 않는다
+          curl -s -o /dev/null -H 'CloudFront-Viewer-Address: 203.0.113.7:51234' "http://127.0.0.1:8080/no-such-page?secret=1"
+          sleep 1
+          grep -q '"log":"access","m":"GET","p":"/no-such-page","s":404' server.log
+          grep -q '"ip":"203.0.113.7"' server.log
+          if grep -q 'secret=1\|126-39' server.log; then echo "로그에 쿼리 문자열이 남았다"; exit 1; fi
           kill %1 || true
 
       - name: zip

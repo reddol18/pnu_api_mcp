@@ -7,4 +7,5 @@ export NODE_ENV=production
 cd "$(dirname "$0")"
 # core는 웹 번들 안에 있어 법정동코드 표 위치를 따로 알려 준다(standalone에 함께 들어 있다)
 export PNU_BJDONG_TSV="$PWD/packages/core/data/bjdong_codes.tsv"
-exec node apps/web/server.js
+# access-log.cjs: 요청마다 경로·응답 코드·처리 시간·IP를 한 줄씩 남긴다(이슈 #7, 쿼리 문자열은 빼고)
+exec node --require ./access-log.cjs apps/web/server.js
