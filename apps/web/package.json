@@ -1,0 +1,29 @@
+{
+  "name": "@pnu/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "필지-건물 관계 조회 웹",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "next typegen && tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@pnu/core": "workspace:*",
+    "maplibre-gl": "6.19.0",
+    "next": "16.4.6",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@types/geojson": "7946.0.16",
+    "@types/node": "26.6.6",
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3",
+    "typescript": "7.0.2",
+    "vitest": "5.1.1"
+  }
+}

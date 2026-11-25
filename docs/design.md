@@ -193,6 +193,14 @@ packages/mcp               apps/web (Next.js)
   - 결론: 응답이 1초 안에 안 오면 거의 확실히 5.1초 뒤 503이다 → 5초를 다 기다릴 이유가 없다. 다만 장애가 몇 분씩 이어지는 구간에서는 클라이언트 재시도로 해결되지 않는다 → 빨리 포기하고 `incomplete` 안내 + (웹) 캐시가 맞다.
 - **반영:** 건축HUB 시도당 제한 2초(`LEDGER_TIMEOUT_MS`), 재시도 2회(0.5초·1초 간격). 장애 구간에서 실패를 알리기까지 약 16초 → 약 7.5초. 동시 hedge 요청은 효과가 낮아(4/19) 넣지 않는다.
 
+### 4-3. 웹 (구현: `apps/web`)
+
+- Next.js 16(App Router). `/api/analyze?q=`(Route Handler)가 core `analyze` + `presentResult` + `mapFeaturesWithMissing`를 부른다. 키는 서버 환경변수에서만 읽는다. 로컬은 `next.config.ts`가 루트 `.env`를 `process.loadEnvFile`로 읽는다.
+- `@pnu/core`는 `serverExternalPackages`(법정동 표를 패키지 기준 상대경로로 읽기 때문에 번들하지 않는다). 타입 검사는 `next typegen && tsc --noEmit`(TS 7이라 Next 내장 검사는 끔).
+- 결과 캐시: 메모리 TTL 7일·300개, **완전한 결과만**(`incomplete` 있으면 저장 안 함 → 다시 물으면 다시 조회). IP당 10분 30회 제한. 둘 다 인스턴스 메모리라 DB 캐시 전까지의 1단계.
+- 지도: MapLibre GL. 출발 필지(파랑), 건물이 걸친 필지(회색), **대장에만 있는 필지(빨강 점선 — 공간상 건물이 안 걸침, 경계를 따로 받아 온다)**, 건물 외곽선(주황). 글자 라벨은 글꼴 서버가 필요해 빼고 클릭 팝업.
+- **배경지도 키:** 브이월드 WMTS `https://api.vworld.kr/req/wmts/1.0.0/{key}/Base/{z}/{y}/{x}.png`(Base 레벨 6~19, 명세 확인). **실제로 Referer를 검사하지 않는다**(다른 도메인 Referer로도 타일이 나옴, 2026-11-25 확인) → 브라우저에 넣는 키는 누구나 쓸 수 있다. 그래서 **배경지도 전용 키**(`NEXT_PUBLIC_VWORLD_TILE_KEY`)를 따로 발급해 쓰고, 데이터 키(`VWORLD_KEY`)는 서버에만 둔다. 전용 키가 없으면 배경 없이 도형만 그린다.
+
 ### MCP 도구
 
 | 도구                | 입력                         | 출력                                                       |
@@ -263,7 +271,7 @@ pnu_api/
 5. [x] 공간 조회(연속지적도 `LP_PA_CBND_BUBUN`·도로명주소 건물 `LT_C_SPBD`) + Turf.js 겹침 계산 — `core/src/spatial.ts` `spatialParcelBuildings`·`spatialBuildingParcels`, fixture 20개
 6. [x] 관계 분류 + 불일치 판정 — `core/src/relation.ts`(계산), `core/src/analyze.ts`(`analyze(input)`이 출발점 결정·조회·판정). 실제 사례 테스트: 1:1(남산공원길 105 공간), 1:N(낭성면), N:1(정원팰리스 대장), N:M(서울시청 대장, 정원팰리스 공간). §4-1 참고
 7. [x] MCP 도구 4개 추가(`resolve_address`, `parcel_buildings`, `building_parcels`, `classify_relation`) — 응답은 도형·원 응답을 빼고 PNU별 지번주소·한 줄 요약을 붙인다(2~3KB). stdio로 실제 API 호출 확인. `.mcp.json`(키 없음, `.env`를 읽음). Claude Code에서 "남산공원길 105 건물이 필지 몇 개에 걸쳐 있어?"로 확인(2026-11-25)
-8. [ ] **← 다음 작업.** Next.js 화면(지도에 필지·건물 겹쳐 표시) + Lambda 배포
+8. [ ] **← 다음 작업.** 8a [x] Next.js 화면 로컬 동작(§4-3) — 검색·결과 패널·지도·API·캐시·요청 제한. 8b [ ] 배경지도 전용 키 발급 → `NEXT_PUBLIC_VWORLD_TILE_KEY`. 8c [ ] Lambda 배포. 원래 항목: Next.js 화면(지도에 필지·건물 겹쳐 표시) + Lambda 배포
 9. [ ] 블로그 글 ① 건물과 필지가 1:1이 아닐 때 ② MCP 서버로 만들기. 기존 `/make-pnu-code`, `/land-use-api`에서 링크
 
 ## 8. 2단계 이후

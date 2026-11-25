@@ -3,7 +3,15 @@
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!**/dist", "!**/data", "!**/.turbo", "!.github/ISSUE_TEMPLATE"]
+    "includes": [
+      "**",
+      "!**/dist",
+      "!**/data",
+      "!**/.turbo",
+      "!**/.next",
+      "!**/next-env.d.ts",
+      "!.github/ISSUE_TEMPLATE"
+    ]
   },
   "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 120 },
   "linter": { "enabled": true, "rules": { "preset": "recommended" } },

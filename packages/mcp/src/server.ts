@@ -12,10 +12,11 @@ import {
   PnuError,
   parseAddressNumber,
   pnuToLedgerKey,
+  presentCandidate,
+  presentResult,
   searchAddress,
 } from '@pnu/core';
 import { z } from 'zod';
-import * as fmt from './format.js';
 
 export interface ServerDeps {
   /** 사용자 본인의 API 키 (환경변수 JUSO_KEY, DATA_GO_KR_KEY, VWORLD_KEY, VWORLD_DOMAIN) */
@@ -58,7 +59,7 @@ export function createServer(deps: ServerDeps = depsFromEnv()): McpServer {
 
   async function run(input: string) {
     const r = await analyze(input, opts());
-    return json(fmt.result(r), r.status === 'error');
+    return json(presentResult(r), r.status === 'error');
   }
 
   server.registerTool(
@@ -126,7 +127,7 @@ export function createServer(deps: ServerDeps = depsFromEnv()): McpServer {
         return json({
           inputKind,
           totalCount: r.totalCount,
-          candidates: r.candidates.map(fmt.candidate),
+          candidates: r.candidates.map(presentCandidate),
           ...(inputKind === 'jibun' && { parcels }),
         });
       } catch (e) {

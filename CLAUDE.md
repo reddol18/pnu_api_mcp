@@ -20,7 +20,7 @@
 ```
 packages/core   PNU·법정동·대장 키·주소 검색(juso)·대장 조회(건축HUB)·공간 조회(VWorld + Turf), 관계 분류 — 로직은 전부 여기
 packages/mcp    MCP 서버 (stdio). core만 호출. 도구 5개, 응답 줄이기는 format.ts. 루트 .mcp.json이 .env를 읽어 띄운다
-apps/web        (예정) Next.js. core만 호출
+apps/web        Next.js 16. core만 호출(/api/analyze). 로컬 실행: pnpm --filter @pnu/web dev (루트 .env를 읽는다)
 ```
 
 ## 하네스

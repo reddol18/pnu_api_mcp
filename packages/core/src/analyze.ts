@@ -70,7 +70,12 @@ export interface RelationResult {
 export interface ParcelAnalysis extends RelationResult {
   start: 'parcel';
   pnu: string;
-  raw: { ledger: ParcelLedger; spatial: SpatialParcelBuildings };
+  raw: {
+    ledger: ParcelLedger;
+    spatial: SpatialParcelBuildings;
+    /** 건물관리번호 → 그 건물이 걸친 필지들 (지도에 그릴 때 쓴다) */
+    parcelsOfBuilding: Record<string, SourceResult<ParcelUnderBuilding>>;
+  };
 }
 
 export interface BuildingAnalysis extends RelationResult {
@@ -186,7 +191,7 @@ export async function analyzeParcel(pnu: string, opts: AnalyzeOptions): Promise<
     discrepancies: discrepanciesFromParcel({ pnu, ledgerRaw, spatialRaw }, ledger, spatial),
     notes,
     incomplete: describeIncomplete(failed),
-    raw: { ledger: ledgerRaw, spatial: spatialRaw },
+    raw: { ledger: ledgerRaw, spatial: spatialRaw, parcelsOfBuilding: Object.fromEntries(parcelsOf) },
   };
 }
 

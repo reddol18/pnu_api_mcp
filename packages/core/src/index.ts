@@ -72,6 +72,21 @@ export {
   splitBuildingMgmtNo,
 } from './pnu.js';
 export {
+  jibunOf,
+  type MapFeatures,
+  type MapProps,
+  type MapRole,
+  mapFeaturesOf,
+  mapFeaturesWithMissing,
+  type PresentedResult,
+  presentAnalysis,
+  presentCandidate,
+  presentResult,
+  presentView,
+  RELATION_TEXT,
+  summaryLine,
+} from './present.js';
+export {
   type BuildingStartContext,
   classify,
   type Discrepancy,
