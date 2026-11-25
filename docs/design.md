@@ -293,7 +293,9 @@ breakscale_wrap에는 비용 계산이 없다(README 「한계」). 시뮬레이
 - **② 예약 동시 실행 100**: 배포 확인(`get-function-concurrency` 100). 거절 응답 모양은 아직 확인 못 함(아래).
 - **③ DynamoDB 캐시**(`apps/web/lib/dynamo-cache.ts`, 테이블 `pnu-web-cache`): 메모리 → DynamoDB → 조회 순. 키는 입력 SHA-256, 값 gzip, TTL 7일, 호출당 300ms 제한·실패 시 캐시 없이 처리. 배포 후 판정 6건 → 항목 6개 저장 확인, 같은 질문 두 번째 0.06초. 로그 `{"cache":"memory|shared|miss"}`로 적중률을 본다.
 - **④ 512MB**: 공개 예시 6곳 첫 조회 Duration 268~708ms(첫 호출 1,965ms는 새 인스턴스의 첫 외부 연결), 콜드 스타트 825ms, 최대 메모리 156MB. 1024MB(864~925ms, 806~968ms)보다 나쁘지 않아 **512로 확정**(템플릿 기본값도 512).
-- **⑤ 차단 스위치**: 경보 `pnu-web-usage-kill-switch`(5분 GB-초 > 10,000) → SNS → `pnu-web-kill-switch`가 동시 실행 0. 배포 확인. **동시 실행 0 상태의 실제 응답(CloudFront를 거친 상태 코드·본문)과 화면 안내는 아직 시험 안 함** — 잠깐 서비스를 멈추는 시험이라 사용자 확인 뒤 한다.
+- **⑤ 차단 스위치**: 경보 `pnu-web-usage-kill-switch`(5분 GB-초 > 10,000) → SNS → `pnu-web-kill-switch`가 동시 실행 0. 배포 확인, 메일 구독 확인됨.
+- **동시 실행 0 시험(2026-11-25, 약 10초 뒤 100으로 복구):** API·페이지(`/`) 모두 CloudFront를 거쳐 **HTTP 429** `{"Reason":"ReservedFunctionConcurrentInvocationLimitExceeded","Type":"User","message":"Rate Exceeded."}`. 타일은 200(CloudFront 직접). 이미 열린 화면에서 검색하면 `unavailableMessage(429)` 안내가 나온다. **새로 들어오는 사람은 페이지 자체가 429 JSON으로 보인다** → 남은 과제(이슈 #5).
+- 아직 안 한 것: 경보 → SNS → 차단용 Lambda 경로 전체 시험(`set-alarm-state`로 ALARM을 만들면 실제로 동시 실행 0이 되고 메일이 간다).
 - 확인된 사실: 로그 REPORT의 Billed Duration에 Init Duration이 들어간다(예: Duration 54ms + Init 825ms → Billed 880ms) → 콜드 스타트 시간도 과금된다.
 
 ### MCP 도구
