@@ -143,6 +143,8 @@
 - [ ] `relJibun`이 여러 개일 때 구분 형식, 대장 부속지번과 어떤 관계인지
 - [ ] 총괄표제부와 그 아래 표제부를 잇는 키(낭성면처럼 지번이 안 맞는 경우)
 - [ ] **경계 접촉 기준값.** 대장으로 확인된 실제 걸침 중 최소가 4.3%(낭성 262-3), 대장 근거 없는 겹침이 3.5%(126-50 → 126-52)라 지금 사례로는 못 가른다. 임시 1%(`EDGE_CONTACT_RATIO`), 비율 값을 결과에 같이 준다. 사례를 더 모아 정한다
+  - 추가 사례(2026-11-25, 사용자 질의로 본 서울 주거지 필지 하나 — 개인 주소라 기록하지 않음): 한 건물이 주변 5필지에 0.1·0.6·0.7·0.7·0.8%씩 닿고, 옆 건물이 0.4% 닿음 → **측량 오차로 보이는 접촉은 0.1~0.8%에 몰린다.** 같은 건물이 다른 한 필지에 2.0%(2.2㎡) 걸침, 대장 근거 없음.
+  - 지금까지: 오차로 보이는 접촉 0.1~0.8% / 대장 근거 없는 겹침 2.0%·3.5% / 대장으로 확인된 걸침 4.3%. → 1%는 오차 구간 바로 위라 경계 접촉 기준으로는 맞아 보인다. 2~5%는 `small_overlap` 안내 구간으로 둔다.
 - [ ] 상봉동 126-39가 언제·어떻게 없어졌는지(합필 등) — 블로그 글감
 - [ ] 각 키의 유효기간·일일 한도 (juso는 **개발용** 키로 발급받음 → 기간 제한 있음)
 
@@ -260,7 +262,7 @@ pnu_api/
 4. [x] 대장 조회(표제부·총괄표제부·부속지번) — `core/src/ledger.ts` `lookupParcelLedger`(소스별 `ok | empty | error`), fixture 14개
 5. [x] 공간 조회(연속지적도 `LP_PA_CBND_BUBUN`·도로명주소 건물 `LT_C_SPBD`) + Turf.js 겹침 계산 — `core/src/spatial.ts` `spatialParcelBuildings`·`spatialBuildingParcels`, fixture 20개
 6. [x] 관계 분류 + 불일치 판정 — `core/src/relation.ts`(계산), `core/src/analyze.ts`(`analyze(input)`이 출발점 결정·조회·판정). 실제 사례 테스트: 1:1(남산공원길 105 공간), 1:N(낭성면), N:1(정원팰리스 대장), N:M(서울시청 대장, 정원팰리스 공간). §4-1 참고
-7. [x] MCP 도구 4개 추가(`resolve_address`, `parcel_buildings`, `building_parcels`, `classify_relation`) — 응답은 도형·원 응답을 빼고 PNU별 지번주소·한 줄 요약을 붙인다(2~3KB). stdio로 실제 API 호출 확인. `.mcp.json`(키 없음, `.env`를 읽음). **남은 것: Claude Code 새 세션에서 `/mcp` 승인 후 실제 질문으로 확인**
+7. [x] MCP 도구 4개 추가(`resolve_address`, `parcel_buildings`, `building_parcels`, `classify_relation`) — 응답은 도형·원 응답을 빼고 PNU별 지번주소·한 줄 요약을 붙인다(2~3KB). stdio로 실제 API 호출 확인. `.mcp.json`(키 없음, `.env`를 읽음). Claude Code에서 "남산공원길 105 건물이 필지 몇 개에 걸쳐 있어?"로 확인(2026-11-25)
 8. [ ] **← 다음 작업.** Next.js 화면(지도에 필지·건물 겹쳐 표시) + Lambda 배포
 9. [ ] 블로그 글 ① 건물과 필지가 1:1이 아닐 때 ② MCP 서버로 만들기. 기존 `/make-pnu-code`, `/land-use-api`에서 링크
 
