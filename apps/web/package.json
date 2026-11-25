@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "3.1176.0",
     "@pnu/core": "workspace:*",
     "maplibre-gl": "6.19.0",
     "next": "16.4.6",

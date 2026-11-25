@@ -13,6 +13,14 @@ interface ApiBody {
   cached: boolean;
 }
 
+/** 우리 앱이 만든 오류 본문이 없을 때(AWS가 거절) 보여 줄 안내 */
+export function unavailableMessage(status: number): string {
+  if (status === 429 || status === 502 || status === 503) {
+    return `지금은 요청이 몰렸거나 서비스가 잠시 중단된 상태입니다(${status}). 잠시 후 다시 시도하세요.`;
+  }
+  return `요청 실패 (${status}). 잠시 후 다시 시도하세요.`;
+}
+
 const EXAMPLES = ['남산공원길 105', '서울특별시 중구 태평로1가 31', '세종대로 110', '낭성면 행정복지센터'];
 
 export function SearchApp({ basemap }: { basemap: boolean }) {
@@ -29,10 +37,11 @@ export function SearchApp({ basemap }: { basemap: boolean }) {
     setError(null);
     try {
       const res = await fetch(`/api/analyze?q=${encodeURIComponent(s)}`);
-      const json = (await res.json()) as ApiBody | { error: string };
-      if (!res.ok || 'error' in json) {
+      // 동시 실행 상한·비용 차단 스위치로 Lambda가 거절하면 우리 앱이 아니라 AWS가 응답한다(JSON 모양이 다르거나 JSON이 아님)
+      const json = (await res.json().catch(() => null)) as ApiBody | { error: string } | null;
+      if (!res.ok || !json || 'error' in json) {
         setBody(null);
-        setError('error' in json ? json.error : `요청 실패 (${res.status})`);
+        setError(json && 'error' in json ? json.error : unavailableMessage(res.status));
       } else {
         setBody(json);
         const url = new URL(window.location.href);
