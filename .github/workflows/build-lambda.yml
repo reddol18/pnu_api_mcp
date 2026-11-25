@@ -26,7 +26,9 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      # pnpm 기본(.pnpm + 심볼릭 링크) 그대로면 standalone의 링크를 풀 때 next가 자기 의존 패키지(@swc/helpers 등)를
+      # 못 찾는다. Lambda용 빌드만 평평한 node_modules로 설치해 standalone에 링크가 생기지 않게 한다.
+      - run: pnpm install --frozen-lockfile --config.node-linker=hoisted
       - run: pnpm turbo run build --filter=@pnu/web...
 
       - name: Lambda 패키지 만들기
@@ -35,8 +37,9 @@ jobs:
           SA=apps/web/.next/standalone
           OUT=lambda
           rm -rf "$OUT" && mkdir -p "$OUT"
-          # pnpm 심볼릭 링크를 실제 파일로 풀어서 복사한다(Lambda zip에서 링크가 깨지지 않게)
+          # hoisted 설치라 링크는 (워크스페이스 패키지 정도만) 남는다. 남은 링크는 실제 파일로 풀어 복사한다
           cp -rL "$SA/." "$OUT/"
+          if find "$OUT" -type l | grep -q .; then echo "링크가 남았다"; find "$OUT" -type l | head; exit 1; fi
           mkdir -p "$OUT/apps/web/.next"
           cp -r apps/web/.next/static "$OUT/apps/web/.next/static"
           if [ -d apps/web/public ]; then cp -r apps/web/public "$OUT/apps/web/public"; fi
@@ -58,12 +61,14 @@ jobs:
           # 키가 없어 공공 API는 실패하지만, 법정동코드 표만으로 지번 → PNU가 되고 응답은 와야 한다
           ./lambda/run.sh > server.log 2>&1 &
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:8080/ > /dev/null && break; sleep 1; done
-          curl -sf http://127.0.0.1:8080/ | grep -q '필지-건물 관계 조회'
+          # grep -q가 먼저 끝나면 curl이 SIGPIPE로 실패해 pipefail에 걸린다 → 파일로 받아서 검사
+          curl -sf http://127.0.0.1:8080/ -o home.html
+          grep -q '필지-건물 관계 조회' home.html
           curl -sf "http://127.0.0.1:8080/api/analyze?q=$(node -e "process.stdout.write(encodeURIComponent('중랑구 상봉동 126-39'))")" | tee api.json | head -c 800; echo
           # 법정동코드 표로 PNU를 만들었으면 이 PNU가 나온다
           grep -q '"pnu":"1126010200101260039"' api.json
           # 정적 파일 하나가 실제로 나오는지
-          CSS=$(curl -sf http://127.0.0.1:8080/ | grep -o '/_next/static/[^"]*\.css' | head -1)
+          CSS=$(grep -o '/_next/static/[^"]*\.css' home.html | head -1 || true)
           test -n "$CSS" && curl -sf -o /dev/null "http://127.0.0.1:8080$CSS"
           kill %1 || true
 
