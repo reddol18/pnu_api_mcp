@@ -56,8 +56,8 @@
 | **대장 기준** (법적) | 표제부의 대표지번 + **부속지번** 목록 | 그 지번으로 조회되는 표제부(동) 목록, 총괄표제부 |
 | **공간 기준** (실제) | 건물 외곽선이 걸친 필지들과 겹침 비율 | 필지 경계 안에 들어오는 건물 외곽선들            |
 
-- 공간 데이터: VWorld 연속지적도(필지 경계, PNU 속성) + GIS 건물통합정보(건물 외곽선).
-- 겹침 비율이 아주 작은 것(예: 1% 미만)은 측량 오차로 보고 "경계 접촉"으로 따로 표시한다. 기준값은 실제 데이터로 정한다.
+- 공간 데이터: VWorld 연속지적도 `LP_PA_CBND_BUBUN`(필지 경계, PNU 속성) + 도로명주소 건물 `LT_C_SPBD`(건물 외곽선, 건물관리번호 속성).
+- 겹침 비율이 아주 작은 것(예: 1% 미만)은 측량 오차로 보고 "경계 접촉"으로 따로 표시한다. 기준값은 실제 데이터로 정한다(§3 미확인 목록 — 아직 못 정함).
 - **불일치 표시:** 예) 대장에는 부속지번이 없는데 공간상으로는 두 필지에 걸침 / 대장상 같은 지번의 동인데 외곽선이 다른 필지에 있음.
 - **확인됨:** 건축HUB에는 "이 필지를 부속지번으로 쓰는 건물"을 거꾸로 찾는 요청 변수가 없다. 그래서 필지 → 건물 방향은 공간 기준으로 채우고 그 사실을 결과에 적는다.
 
@@ -119,12 +119,30 @@
   - 정원팰리스(상봉동 126-52): 집합 총괄표제부 1 + 표제부 3동.
   - 블로그 예시 상봉동 126-39: 표제부 0건.
 
+**확인된 사실 — VWorld 2D데이터 API 2.0 (2026-11-25, 레퍼런스 페이지 + 실제 응답, `packages/core/fixtures/spatial/`):**
+
+- `GET https://api.vworld.kr/req/data` — `service=data`, `version=2.0`, `request=GetFeature`, `format=json`, `key`, `domain`, `data`(레이어), `size`(최대 1000), `page`, `attrFilter`(`속성:연산자:값`) 또는 `geomFilter`(POINT·LINESTRING·POLYGON·MULTIPOLYGON·BOX, 면적 2km² 이하), `crs`(기본 EPSG:4326). 레퍼런스: `vworld.kr/dev/v4dv_2ddataguide2_s002.do?svcIde=<id>`(POST `apiVer=2`).
+- **서버 호출에는 `domain`이 반드시 필요하다.** 빼거나 키에 등록하지 않은 URL(예: example.com)이면 `INCORRECT_KEY`. 등록한 `https://pnu.reddol18.pe.kr`과 `http://localhost` 둘 다 동작 → `.env`의 `VWORLD_DOMAIN`.
+- 필지 경계: **`LP_PA_CBND_BUBUN`**(연속지적도). `attrFilter=pnu:=:<PNU>`로 바로 조회. 속성 `pnu`, `addr`, `jibun`(`31대`처럼 지목 글자 포함), `bonbun`·`bubun`(`1도`·`3임`처럼 지목 글자가 섞여 나와 쓰지 않는다), `jiga`, `gosi_year`, `gosi_month`. 도형은 MultiPolygon.
+- 건물 외곽선: **`LT_C_SPBD`**(도로명주소 건물, 행정안전부). `attrFilter=bd_mgt_sn:=:<건물관리번호>`로 바로 조회 → juso 결과와 바로 이어진다. 속성 `bd_mgt_sn`, `buld_nm`, `buld_nm_dc`(동), `rd_nm`, `buld_no`, `gro_flo_co`. 레퍼런스에도 건물관리번호가 "생성 당시 기준의 PNU + 연번이고 행정구역이 바뀌어도 반영 안 됨"이라고 적혀 있다.
+- `LT_C_BLDGINFO`(건축물정보, 국토교통부)는 식별자 속성이 없고(pnu 필터 불가, 속성은 `bld_nm`·`dong_nm`·면적 등) 값 대부분이 비어 있다 → 1단계에서는 쓰지 않는다. 도로명주소가 없는 부속건축물은 `LT_C_SPBD`에 없다는 한계가 있다.
+- 응답 `response.status`: `OK` / `NOT_FOUND`(결과 없음, `result` 없음) / `ERROR`(`error.code`). 숫자도 문자열.
+- **BOX 필터는 사각 범위에 닿는 것을 모두 준다**(서울시청 근처 지하상가 하나로 필지 121개). 그래서 외곽선 그대로 POLYGON/MULTIPOLYGON 필터를 건다(URL 1~4KB, 산 필지 3.5KB). 너무 길면 BOX로 받고 Turf로 거른다.
+- 응답 시간 보통 100~500ms.
+- 실제 사례(공간 기준):
+  - 서울시청 본관동·신관: 100% 31번지 안. 대장 부속지번 31-1은 **도로 필지**라 공간상 안 겹친다 → 불일치.
+  - **YTN서울타워: juso·대장은 산1-3인데 외곽선은 100% 산1-11 위**(대장의 부속지번). 산1-3 안에서 찾은 건물 목록에도 없다.
+  - 남산공원길 126: 산1-3 82.8% + 산1-1 17.2% → 건물 → 필지 2.
+  - 낭성면 행정복지센터: 120-3 78.7% + 34-6 17.0% + 262-3 4.3% → **대장 부속지번과 정확히 일치**.
+  - 정원팰리스 126-52: 101~103동 100% 안. 옆 건물(126-50)이 126-52에 3.5%(3.4㎡) 걸침.
+  - 블로그 예시 상봉동 126-39: **연속지적도에 없다**(NOT_FOUND). 표제부·도로명주소 건물도 0건 → 지금은 없는 필지일 가능성(합필 등).
+
 **아직 확인 안 된 것 (구현 중 실제 응답으로 확인하고 이 목록에서 지운다):**
 
 - [ ] `relJibun`이 여러 개일 때 구분 형식, 대장 부속지번과 어떤 관계인지
 - [ ] 총괄표제부와 그 아래 표제부를 잇는 키(낭성면처럼 지번이 안 맞는 경우)
-- [ ] VWorld 2D데이터 API의 레이어 ID(연속지적도, GIS 건물통합정보), PNU 속성 필터 방법, 공간 필터(geomFilter) 방법
-- [ ] VWorld 키가 `localhost`·서버 호출(도메인 파라미터)에서 동작하는지 — 서비스URL은 `https://pnu.reddol18.pe.kr` 하나만 등록함
+- [ ] **경계 접촉 기준값.** 대장으로 확인된 실제 걸침 중 최소가 4.3%(낭성 262-3), 대장 근거 없는 겹침이 3.5%(126-50 → 126-52)라 지금 사례로는 못 가른다. 임시 1%(`EDGE_CONTACT_RATIO`), 비율 값을 결과에 같이 준다. 사례를 더 모아 정한다
+- [ ] 상봉동 126-39가 언제·어떻게 없어졌는지(합필 등) — 블로그 글감
 - [ ] 각 키의 유효기간·일일 한도 (juso는 **개발용** 키로 발급받음 → 기간 제한 있음)
 
 ---
@@ -213,8 +231,8 @@ pnu_api/
 2. [x] `core/pnu.ts` + 테스트 (조립·해독·platGbCd 매핑·건물관리번호 분해), 법정동 해독, MCP `decode_pnu` — 커밋 d6aef0e, CI 통과
 3. [x] juso 연동 → 주소 종류 판별(`classifyInput`)과 후보 목록(`searchAddress`), fixture 8개로 정규화 테스트 — `core/src/address.ts`
 4. [x] 대장 조회(표제부·총괄표제부·부속지번) — `core/src/ledger.ts` `lookupParcelLedger`(소스별 `ok | empty | error`), fixture 14개
-5. [ ] **← 다음 작업.** 공간 조회(연속지적도·건물통합정보) + Turf.js 겹침 계산
-6. [ ] 관계 분류 + 불일치 판정, fixture 테스트(1:1, 1:N, N:1, N:M 실제 사례)
+5. [x] 공간 조회(연속지적도 `LP_PA_CBND_BUBUN`·도로명주소 건물 `LT_C_SPBD`) + Turf.js 겹침 계산 — `core/src/spatial.ts` `spatialParcelBuildings`·`spatialBuildingParcels`, fixture 20개
+6. [ ] **← 다음 작업.** 관계 분류 + 불일치 판정, fixture 테스트(1:1, 1:N, N:1, N:M 실제 사례)
 7. [ ] MCP 도구 4개 추가 + Claude Code 연결 확인
 8. [ ] Next.js 화면(지도에 필지·건물 겹쳐 표시) + Lambda 배포
 9. [ ] 블로그 글 ① 건물과 필지가 1:1이 아닐 때 ② MCP 서버로 만들기. 기존 `/make-pnu-code`, `/land-use-api`에서 링크

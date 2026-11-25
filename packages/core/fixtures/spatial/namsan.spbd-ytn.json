@@ -1,0 +1,72 @@
+{
+  "request": {
+    "service": "data",
+    "version": "2.0",
+    "request": "GetFeature",
+    "format": "json",
+    "size": "100",
+    "data": "LT_C_SPBD",
+    "attrFilter": "bd_mgt_sn:=:1117010200200010011026010"
+  },
+  "response": {
+    "response": {
+      "service": {
+        "name": "data",
+        "version": "2.0",
+        "operation": "GetFeature",
+        "time": "23(ms)"
+      },
+      "status": "OK",
+      "record": {
+        "total": "1",
+        "current": "1"
+      },
+      "page": {
+        "total": "1",
+        "current": "1",
+        "size": "100"
+      },
+      "result": {
+        "featureCollection": {
+          "type": "FeatureCollection",
+          "bbox": [126.9878183044463, 37.55100703437898, 126.98789896624105, 37.55122555753521],
+          "features": [
+            {
+              "type": "Feature",
+              "geometry": {
+                "type": "MultiPolygon",
+                "coordinates": [
+                  [
+                    [
+                      [126.98789896624103, 37.55122555753521],
+                      [126.98789895793686, 37.55101793328768],
+                      [126.98784211722533, 37.55100703437898],
+                      [126.98784398628898, 37.55112128926615],
+                      [126.9878183044463, 37.5512102403791],
+                      [126.98788237617585, 37.551224240376335],
+                      [126.98788295360015, 37.551222555568806],
+                      [126.98789896624103, 37.55122555753521]
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "buld_nm_dc": "",
+                "buld_no": "105",
+                "rd_nm": "남산공원길",
+                "sigungu": "용산구",
+                "sido": "서울특별시",
+                "gro_flo_co": "2",
+                "bul_eng_nm": "",
+                "buld_nm": "YTN서울타워",
+                "gu": "용산동2가",
+                "bd_mgt_sn": "1117010200200010011026010"
+              },
+              "id": "LT_C_SPBD.1100620871"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

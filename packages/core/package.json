@@ -1,7 +1,7 @@
 {
   "name": "@pnu/core",
   "version": "0.1.0",
-  "description": "PNU(필지고유번호) 조립·해독, 법정동코드, 건축물대장 키 변환, 도로명주소 검색",
+  "description": "PNU(필지고유번호) 조립·해독, 법정동코드, 건축물대장 키 변환, 도로명주소 검색, 대장·공간 조회",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -25,5 +25,11 @@
     "@types/node": "26.6.6",
     "typescript": "7.0.2",
     "vitest": "5.1.1"
+  },
+  "dependencies": {
+    "@turf/area": "7.4.0",
+    "@turf/helpers": "7.4.0",
+    "@turf/intersect": "7.4.0",
+    "@types/geojson": "7946.0.16"
   }
 }

@@ -16,6 +16,7 @@
  * - 요청 변수에 부속지번 필드가 없다 → "이 필지를 부속지번으로 쓰는 건물"을 거꾸로 찾을 수 없다.
  */
 import { formatPnu, type LedgerKey, type PnuParts, pnuToLedgerKey } from './pnu.js';
+import { defaultSleep, isTimeoutError, type SourceResult, settle } from './source.js';
 
 export const BLD_HUB_BASE_URL = 'https://apis.data.go.kr/1613000/BldRgstHubService';
 
@@ -293,7 +294,7 @@ async function requestPage(
   try {
     res = await doFetch(`${BLD_HUB_BASE_URL}/${op}?${params}`, { signal: AbortSignal.timeout(opts.timeoutMs ?? 5000) });
   } catch (e) {
-    const timeout = e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError');
+    const timeout = isTimeoutError(e);
     // URL에 키가 들어 있으므로 원인 메시지는 붙이지 않는다
     throw new LedgerError(
       timeout ? '건축물대장 API 응답 시간 초과' : '건축물대장 API 호출 실패',
@@ -315,7 +316,7 @@ async function requestPage(
 
 async function requestPageWithRetry(op: LedgerOperation, key: LedgerKey, pageNo: number, opts: LedgerOptions) {
   const retries = opts.retries ?? 2;
-  const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const sleep = opts.sleep ?? defaultSleep;
   for (let attempt = 0; ; attempt++) {
     try {
       return await requestPage(op, key, pageNo, opts);
@@ -354,23 +355,6 @@ export async function getRecapTitles(pnu: string, opts: LedgerOptions): Promise<
 
 export async function getAttachedJibuns(pnu: string, opts: LedgerOptions): Promise<AttachedJibunRecord[]> {
   return (await fetchLedgerItems('getBrAtchJibunInfo', pnu, opts)).map(normalizeAttachedJibun);
-}
-
-/** 소스 하나의 결과. 하나가 실패해도 나머지는 보여 준다 */
-export type SourceResult<T> =
-  | { status: 'ok'; data: T[] }
-  | { status: 'empty'; data: [] }
-  | { status: 'error'; data: []; error: { code: string; message: string } };
-
-async function settle<T>(p: Promise<T[]>): Promise<SourceResult<T>> {
-  try {
-    const data = await p;
-    return data.length ? { status: 'ok', data } : { status: 'empty', data: [] };
-  } catch (e) {
-    const code = e instanceof LedgerError ? e.code : 'UNKNOWN';
-    const message = e instanceof Error ? e.message : String(e);
-    return { status: 'error', data: [], error: { code, message } };
-  }
 }
 
 export interface ParcelLedger {
